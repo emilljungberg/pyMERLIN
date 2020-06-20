@@ -133,3 +133,32 @@ def traj2points(traj, npoints, OS):
     traj_p = Gx*np.transpose(np.tile(traj, [npoints, 1, 1]), [1, 0, 2])
 
     return traj_p
+
+
+def dc_filter(n):
+    """
+    Simple r^2 DC filter for 3D radial acquisition
+    """
+
+    r = np.linspace(0, 1, num=n)
+    dcf = r**2
+
+    return dcf
+
+
+def fermi_filter(n, rf, wf):
+    """
+    Fermi filter for radial out data
+
+    Inputs:
+        - n: Number of points along spoke
+        - rf: Filter radius
+        - wf: Filter width
+
+    Outputs:
+        - filt: 1D Fermi filter
+    """
+    r = np.linspace(0, 1, num=n)
+    filt = 1.0/(1+np.exp((r-rf)/wf))
+
+    return filt
