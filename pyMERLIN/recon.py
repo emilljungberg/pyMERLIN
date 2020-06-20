@@ -162,3 +162,38 @@ def fermi_filter(n, rf, wf):
     filt = 1.0/(1+np.exp((r-rf)/wf))
 
     return filt
+
+
+def sense_selfcalib(y, coord, oshape=None, rf=0.25, wf=0.05):
+    """
+    Generate SENSE maps from 3D radial data using the center of k-space.
+    Applies a fermi filter to lowpass filter the data. DC filter is 
+    applied in here as well.
+
+    Based on: McKenzie CA et al. Magn Reson Med. 2002;47(3):529–38. 
+
+    Inputs:
+        - y: Radial k-space data (raw)
+        - coord: Coordinates/trajectory point by point
+        - oshape: Shape of output data
+        - rf: Radius for fermi filter (0.25)
+        - wf: Width for fermi filter (0.05)
+
+    Returns:
+        - SENSE: Sensitivity maps
+    """
+
+    [nrcv, nspokes, npts] = np.shape(y)
+    dcf = dc_filter(npts)
+    ff = fermi_filter(npts, rf, wf)
+
+    # Calculate low resolution coil images
+    I_coils = sigpy.nufft_adjoint(y*ff*dcf, coord, oshape=oshape)
+
+    # Calculate SoS image
+    I_rss = np.sum(np.abs(I_coils)**2, 0)**0.5
+
+    # Make SENSE maps by dividing out PD information from the coil images
+    SENSE = I_coils/I_rss
+
+    return SENSE
