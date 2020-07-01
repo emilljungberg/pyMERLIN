@@ -250,7 +250,7 @@ def svd_coil_compress(raw, n_out):
     X = np.reshape(np.transpose(raw, (1, 2, 0)), (npts*nspokes, nrcv))
     m, n = np.shape(X)
 
-    U, Sigma, Vh = np.linalg.svd(X, full_matrices=False, compute_uv=True, )
+    U, Sigma, Vh = np.linalg.svd(X, full_matrices=False, compute_uv=True)
 
     Sigma_cc = Sigma
     Sigma_cc[6:-1] = 0
