@@ -1,5 +1,7 @@
 import numpy as np
 import sigpy
+from sigpy.mri.app import TotalVariationRecon
+
 
 PHI_GOLD = np.pi*(3-np.sqrt(5))
 fibbonaciNum = [3, 5, 8, 13, 21, 34, 55, 89, 144,
@@ -197,3 +199,66 @@ def sense_selfcalib(y, coord, oshape=None, rf=0.25, wf=0.05):
     SENSE = I_coils/I_rss
 
     return SENSE
+
+
+def rss(I_coils):
+    """
+    Calculate root sum of squares of coil images
+    Assumes coils along 0th dimension as in Sigpy
+    """
+    return np.sum(np.abs(I_coils)**2, axis=0)**0.5
+
+
+def TV_recon(raw, traj, lamda, maps, show_pbar=True, max_power_iter=10, max_iter=30) -> np.complex64:
+    """
+    Perform Total Variation reconstruction using Sigpy. 
+
+    In the first step it calculates a simple SoS image to get correct scaling of the 
+    k-space data.
+
+    Inputs:
+        - raw: k-space [nrcv, nspokes, npts]
+        - traj: K-space coordinates
+        - lamda: TV lambda
+        - maps: SENSE maps
+        - show_pbar: Show sigpy progress bar (True)
+        - max_power_iter: Itterations to calculate linop eigenvalue (10)
+        - max_iter: Maximum iterations for TV loop (30)
+
+    Returns:
+        - I: Complex valued TV image 
+    """
+    [nrcv, nspokes, npts] = np.shape(raw)
+    dcf = dc_filter(npts)
+
+    I_int = rss(sigpy.nufft_adjoint(raw * dcf, traj))
+    img_scale = 1/np.max(I_int)
+
+    TV_app = TotalVariationRecon(y=raw * img_scale, weights=dcf, coord=traj,
+                                 mps=maps, lamda=lamda, max_power_iter=max_power_iter,
+                                 max_iter=max_iter, show_pbar=show_pbar)
+    I = TV_app.run()
+
+    return I
+
+
+def svd_coil_compress(raw, n_out):
+    """
+    Perform simple coil compression on radial k-space data
+    """
+    [nrcv, nspokes, npts] = np.shape(raw)
+    X = np.reshape(np.transpose(raw, (1, 2, 0)), (npts*nspokes, nrcv))
+    m, n = np.shape(X)
+
+    U, Sigma, Vh = np.linalg.svd(X, full_matrices=False, compute_uv=True, )
+
+    Sigma_cc = Sigma
+    Sigma_cc[6:-1] = 0
+    X_cc = np.dot(U, np.diag(Sigma_cc))
+
+    var_exp = Sigma**2/np.sum(Sigma**2)*100
+    print('Variance explained: %.1f' % (np.sum(var_exp[0:n_out])))
+
+    raw_cc = np.transpose(np.reshape(X_cc, (nspokes, npts, nrcv)), (2, 0, 1))
+
+    return raw_cc, Sigma
