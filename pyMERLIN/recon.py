@@ -1,7 +1,7 @@
 import numpy as np
 import sigpy
 from sigpy.mri.app import TotalVariationRecon
-
+import tqdm
 
 PHI_GOLD = np.pi*(3-np.sqrt(5))
 fibbonaciNum = [3, 5, 8, 13, 21, 34, 55, 89, 144,
@@ -221,6 +221,7 @@ def TV_recon(raw, traj, lamda, maps, show_pbar=True, max_power_iter=10, max_iter
         - traj: K-space coordinates
         - lamda: TV lambda
         - maps: SENSE maps
+        - OS: Trajectory oversampling factor
         - show_pbar: Show sigpy progress bar (True)
         - max_power_iter: Itterations to calculate linop eigenvalue (10)
         - max_iter: Maximum iterations for TV loop (30)
@@ -233,13 +234,39 @@ def TV_recon(raw, traj, lamda, maps, show_pbar=True, max_power_iter=10, max_iter
 
     I_int = rss(sigpy.nufft_adjoint(raw * dcf, traj))
     img_scale = 1/np.max(I_int)
-
     TV_app = TotalVariationRecon(y=raw * img_scale, weights=dcf, coord=traj,
                                  mps=maps, lamda=lamda, max_power_iter=max_power_iter,
                                  max_iter=max_iter, show_pbar=show_pbar)
     I = TV_app.run()
 
     return I
+
+
+def TV_recon_timeseries(raw, traj, nint, OS=1, SENSE_rf=0.15, SENSE_wf=0.05, lamda=0.05, show_pbar_TV=True, max_power_iter=10, max_iter=30):
+
+    [nrcv, nspokes, npts] = np.shape(raw)
+
+    spi = int(nspokes/nint)
+    SENSE_oshape = None
+    for i in tqdm.tqdm(range(nint)):
+
+        i0 = i*spi
+        i1 = (i+1)*spi
+
+        SENSE = sense_selfcalib(
+            raw[:, i0:i1, :], traj[i0:i1, :, :]*OS, rf=0.15, wf=0.05, oshape=SENSE_oshape)
+
+        I_TV = TV_recon(raw[:, i0:i1, :], traj[i0:i1, :, :]*OS, lamda=lamda,
+                        maps=SENSE, show_pbar=show_pbar_TV, max_power_iter=max_power_iter, max_iter=max_iter)
+
+        if i == 0:
+            [nx, ny, nz] = np.shape(I_TV)
+            TS = np.zeros((nx, ny, nz, nint), dtype='complex')
+            SENSE_oshape = (nrcv, nx, ny, nz)
+
+        TS[:, :, :, i] = I_TV
+
+    return TS
 
 
 def svd_coil_compress(raw, n_out):
