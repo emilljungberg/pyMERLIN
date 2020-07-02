@@ -33,7 +33,7 @@ def plot_3plane(I, title='', cmap='gray', vmin=None, vmax=None):
     plt.show()
 
 
-def timeseries_video(img_ts, interval=100):
+def timeseries_video(img_ts, interval=100, title=''):
     """
     Show a time series as a video in a Jupyter Notebook
 
@@ -41,12 +41,13 @@ def timeseries_video(img_ts, interval=100):
         - img_ts: Time series sliced to desired view [nx,ny,nt]
 
     Output:
-        - anim: Animation 
+        - video: HTML5 video object 
 
     To view animation in notebook run
 
         from IPython.display import HTML
-        HTML(anim.to_html5_video())
+        video = timeseries_video(TS)
+        HTML(video)
 
     """
     fig, ax = plt.subplots()
@@ -59,19 +60,17 @@ def timeseries_video(img_ts, interval=100):
         img.set_data(img_ts[:, :, 0])
         return (img,)
 
-    # animation function. This is called sequentially
-
     def animate(i):
         t = i
         img.set_data(img_ts[:, :, t])
-        ax.set_title('T=%d/%d' % (t, nt))
+        ax.set_title('%s (t=%d/%d)' % (title, t, nt-1))
         return (img,)
 
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=nt, interval=interval, blit=True)
     plt.close()
 
-    return anim
+    return anim.to_html5_video()
 
 
 def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='col'):
@@ -132,32 +131,51 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
     return I3
 
 
-def plot_rotation_translation(df):
+def plot_rotation_translation(df_list, names):
     """
     Plot rotation and translation result from registration outputs
+
+    Input:
+        - df_list: Single dictionary or list of dicts
+        - names: Single string name or list of strings
     """
-    fig = plt.figure(figsize=(8, 4))
-    x = np.arange(1, len(df))
 
-    fig.add_subplot(1, 2, 1)
-    for k in ['X', 'Y', 'Z']:
+    if not isinstance(df_list, list):
+        df_list = [df_list]
+
+    if not isinstance(names, list):
+        names = [names]
+
+    fig = plt.figure(figsize=(13, 6))
+    x = np.arange(np.shape(df_list[0])[1])
+
+    for (i, k) in enumerate(['X', 'Y', 'Z']):
+        fig.add_subplot(2, 3, i+1)
         key = 'Versor %s' % k
-        plt.plot(x, df.loc[key, :], '-o', label=key)
-    plt.grid()
-    plt.legend()
-    # plt.axis([1, len(df), -0.05, 0.05])
-    plt.xlabel('Moving Interleave num')
-    plt.ylabel('Angle [rad]')
-    plt.title('Rotation', size=20)
+        for (df, name) in zip(df_list, names):
+            plt.plot(x, np.rad2deg(df.loc[key, :]), '-o', label=name)
 
-    fig.add_subplot(1, 2, 2)
-    for k in ['X', 'Y', 'Z']:
+        if i == 0:
+            plt.legend()
+
+        plt.grid()
+        plt.xlabel('Interleave')
+        plt.ylabel('Angle [deg]')
+        plt.title('Rotation in %s' % k, size=16)
+
+    for (i, k) in enumerate(['X', 'Y', 'Z']):
+        fig.add_subplot(2, 3, i+1+3)
         key = 'Trans %s' % k
-        plt.plot(x, df.loc[key, :], '-o', label=key)
-    plt.grid()
-    plt.legend()
-    # plt.axis([1, len(df), -2, 2])
-    plt.xlabel('Moving Interleave num')
-    plt.ylabel('Distance [mm]')
-    plt.title('Translation', size=20)
+        for (df, name) in zip(df_list, names):
+            plt.plot(x, df.loc[key, :], '-o', label=name)
+
+        if i == 0:
+            plt.legend()
+
+        plt.grid()
+        plt.xlabel('Moving Interleave num')
+        plt.ylabel('Distance [mm]')
+        plt.title('Translation in %s' % k, size=16)
+
     plt.tight_layout()
+    plt.show()
