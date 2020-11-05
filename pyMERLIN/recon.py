@@ -4,7 +4,7 @@ from sigpy.mri.app import TotalVariationRecon
 import tqdm
 
 PHI_GOLD = np.pi*(3-np.sqrt(5))
-fibbonaciNum = [3, 5, 8, 13, 21, 34, 55, 89, 144,
+fibonacciNum = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144,
                 233, 377, 610, 987, 1597, 2584, 4181, 6765]
 
 
@@ -113,6 +113,84 @@ def traj_phyllotaxis_acos(n, nint):
                 idx1 = i*spokes_per_int + j
                 idx2 = (n - (nint - i)) - j * nint
                 traj[:, idx1] = traj_tmp[:, idx2]
+
+
+def linear_phyllotaxis(n, nint, sf):
+
+    traj = np.zeros((n, 3))
+    spi = int(n/nint)
+
+    i = np.arange(spi)
+    phi0 = i * PHI_GOLD * fibonacciNum[sf]
+    z0 = 1 - 2*nint*i/(n-1)
+    r = 1
+
+    for k in range(nint):
+        z = z0 - k*2/(n-1)
+        phi = phi0 + k * PHI_GOLD
+
+        theta = np.arccos(z)
+        traj[k*spi: (k+1)*spi, 0] = r * np.sin(theta) * np.cos(phi)
+        traj[k*spi: (k+1)*spi, 1] = r * np.sin(theta) * np.sin(phi)
+        traj[k*spi: (k+1)*spi, 2] = r * z
+
+    return traj
+
+
+def infinite_phyllotaxis(n, nint, sf):
+    traj = np.zeros((n, 3))
+    spi = int(n/nint)
+
+    i = np.arange(spi)
+    phi0 = i * PHI_GOLD * fibonacciNum[sf]
+    z0 = 1 - 2*i/spi
+    r = 1
+    g = 3-np.sqrt(5)
+
+    for k in range(nint):
+        dz = np.mod(g*k, 1)*2/spi
+        z = z0 - dz
+        phi = phi0 + k * PHI_GOLD
+
+        theta = np.arccos(z)
+        traj[k*spi: (k+1)*spi, 0] = r * np.sin(theta) * np.cos(phi)
+        traj[k*spi: (k+1)*spi, 1] = r * np.sin(theta) * np.sin(phi)
+        traj[k*spi: (k+1)*spi, 2] = r * z
+
+    return traj
+
+
+def wong_roos_trajectory(n):
+
+    traj = np.zeros((n, 3))
+    ni = np.arange(1, n+1)
+
+    traj[:, 2] = (2*ni - n - 1)/n
+    traj[:, 0] = np.cos(np.sqrt(n*np.pi)*np.arcsin(traj[:, 2])
+                        )*np.sqrt(1-traj[:, 2]**2)
+    traj[:, 1] = np.sin(np.sqrt(n*np.pi)*np.arcsin(traj[:, 2])
+                        ) * np.sqrt(1-traj[:, 2]**2)
+
+    return traj
+
+
+def wong_roos_interleaved_trajectory(n, nint):
+    traj = np.zeros((n, 3))
+    spi = int(n/nint)
+    ni = np.arange(1, spi+1)
+
+    z = -(2*ni-spi-1)/spi
+
+    ang_vel = np.sqrt(n*np.pi/nint)*np.arcsin(z)
+    for m in range(nint):
+        x = np.cos(ang_vel + (2*(m+1)*np.pi)/nint) * np.sqrt(1-z**2)
+        y = np.sin(ang_vel + (2*(m+1)*np.pi)/nint) * np.sqrt(1-z**2)
+
+        traj[m*spi:(m+1)*spi, 0] = x
+        traj[m*spi:(m+1)*spi, 1] = y
+        traj[m*spi:(m+1)*spi, 2] = z
+
+    return traj
 
 
 def traj2points(traj, npoints, OS):
@@ -289,3 +367,73 @@ def svd_coil_compress(raw, n_out):
     raw_cc = np.transpose(np.reshape(X_cc, (nspokes, npts, nrcv)), (2, 0, 1))
 
     return raw_cc, Sigma
+
+
+def pca_cc_calc(raw, n_out):
+    """
+    Calculate PCA coil compression matrix A from raw data. 
+    Recommended to input subset of data for coil compression for faster
+    computation.
+
+    Input:
+        - raw: Raw data to calculate coil compression on
+        - n_out: Number of coils to keep
+
+    Output:
+        - A: Compression matrix (complex array)
+        - pca_res: Results from PCA and eigenvalue computation
+
+    Example usage
+
+        A, pca_res = pca_cc_calc(raw[:,:,0:32])
+        raw_cc = pca_cc_apply(raw, A)
+    """
+
+    [nrcv, nspokes, npts] = np.shape(raw)
+
+    X = np.reshape(np.transpose(raw, (1, 2, 0)), (nspokes*npts, nrcv))
+
+    # Center data
+    u = np.mean(X, axis=0)
+    B = X - u
+
+    # Covariance matrix
+    C = 1/(nspokes*npts - 1) * (np.conj(B).T @ B)
+
+    # Eigen value decomposition
+    w, v = np.linalg.eig(C)
+
+    # Pick out values to keep
+    A = v[:, 0:n_out]
+
+    # Energy preserved
+    g_out = np.sum(abs(w[0:n_out]))/np.sum(abs(w))
+    print('Energy preserved: %.3f' % g_out)
+
+    pca_res = {'C': C, 'W': w, 'V': v}
+
+    return A, pca_res
+
+
+def pca_cc_apply(raw, A):
+    """
+    Apply coil compression matrix
+
+    Input:
+        - raw: Raw k-space data
+        - A: Coil compression matrix
+
+    Output:
+        - raw_cc: Compressed raw k-space data
+    """
+
+    [nrcv, nspokes, npts] = np.shape(raw)
+
+    X = np.reshape(np.transpose(raw, (1, 2, 0)), (nspokes*npts, nrcv))
+    Xcc = X @ A
+
+    nrcv_out = np.shape(A)[1]
+    raw_cc = np.transpose(np.reshape(
+        Xcc, [nspokes, npts, nrcv_out]), (2, 0, 1))
+
+    return raw_cc
