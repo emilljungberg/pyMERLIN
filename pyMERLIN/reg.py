@@ -1,11 +1,73 @@
+import os
 import itk
+import tqdm
+import h5py
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
-from .io import create_image
+from .dataIO import create_image
+
 from IPython.display import display, HTML
-import tqdm
+
+
+def brain_mask(input_image, hole_radius=5, dilation=3, gauss_variance=100, gauss_max_ker=30):
+    Dimension = 3
+    InputPixelType = itk.template(input_image)[1][0]
+    OutputPixelType = itk.UC
+    InputImageType = itk.Image[InputPixelType, Dimension]
+    OutputImageType = itk.Image[OutputPixelType, Dimension]
+
+    # Otsu Therholding Filter
+    OtsuFilterType = itk.OtsuThresholdImageFilter[InputImageType,
+                                                  OutputImageType]
+    otsu_filter = OtsuFilterType.New()
+    otsu_filter.SetOutsideValue(1)
+    otsu_filter.SetInsideValue(0)
+    otsu_filter.SetInput(input_image)
+
+    # Fill Holes
+    FillFilterType = itk.VotingBinaryHoleFillingImageFilter[OutputImageType, OutputImageType]
+    fill_filter = FillFilterType.New()
+    fill_filter.SetRadius([hole_radius, hole_radius, hole_radius])
+    fill_filter.SetBackgroundValue(0)
+    fill_filter.SetForegroundValue(1)
+    fill_filter.SetMajorityThreshold(10)
+    fill_filter.SetInput(otsu_filter.GetOutput())
+
+    # Dilate mask
+    StructuringElementType = itk.FlatStructuringElement[Dimension]
+    DilateFilterType = itk.BinaryDilateImageFilter[OutputImageType,
+                                                   OutputImageType, StructuringElementType]
+    binaryDilate = DilateFilterType.New()
+    structuringElement = StructuringElementType()
+    structuringElement.SetRadius(dilation)
+    binaryDilate.SetKernel(structuringElement)
+    binaryDilate.SetDilateValue(1)
+    binaryDilate.SetInput(fill_filter.GetOutput())
+
+    # Cast back to float image
+    CastFilterType = itk.RescaleIntensityImageFilter[OutputImageType, InputImageType]
+    cast_filter = CastFilterType.New()
+    cast_filter.SetOutputMinimum(0)
+    cast_filter.SetOutputMaximum(1)
+    cast_filter.SetInput(binaryDilate.GetOutput())
+
+    # Smooth data
+    SmoothingFilterType = itk.DiscreteGaussianImageFilter[InputImageType, InputImageType]
+    smoothing_filter = SmoothingFilterType.New()
+    smoothing_filter.SetVariance(gauss_variance)
+    smoothing_filter.SetMaximumKernelWidth(gauss_max_ker)
+    smoothing_filter.SetInput(cast_filter.GetOutput())
+
+    # Final update
+    smoothing_filter.Update()
+
+    threshold = otsu_filter.GetThreshold()
+    print("Otsu Threshold: {}".format(threshold))
+    output = smoothing_filter.GetOutput()
+
+    return output
 
 
 def versor_reg_summary(registrations, reg_outs, names=None, doprint=True, show_legend=True):
@@ -138,7 +200,7 @@ def versor_reg_summary(registrations, reg_outs, names=None, doprint=True, show_l
 def versor_watcher(reg_out, optimizer, verbose):
     if verbose:
         print("{:s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s}".format(
-            'Itt', 'Value', 'vX', 'vY', 'vZ', 'tX', 'tY', 'tZ'))
+            'Itt', 'Value', 'vX [deg]', 'vY [deg]', 'vZ [deg]', 'tX [mm]', 'tY [mm]', 'tZ [mm]'))
 
     def opt_watcher():
         cv = optimizer.GetValue()
@@ -149,9 +211,9 @@ def versor_watcher(reg_out, optimizer, verbose):
 
         # Store logged values
         reg_out['cv'].append(cv)
-        reg_out['vX'].append(cpos[0])
-        reg_out['vY'].append(cpos[1])
-        reg_out['vZ'].append(cpos[2])
+        reg_out['vX'].append(np.rad2deg(cpos[0]))
+        reg_out['vY'].append(np.rad2deg(cpos[1]))
+        reg_out['vZ'].append(np.rad2deg(cpos[2]))
         reg_out['tX'].append(cpos[3])
         reg_out['tY'].append(cpos[4])
         reg_out['tZ'].append(cpos[5])
@@ -160,10 +222,223 @@ def versor_watcher(reg_out, optimizer, verbose):
 
         # Printing
         if verbose:
-            print("{:d} \t {:6.2f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
-                cit, cv, cpos[0], cpos[1], cpos[2], cpos[3], cpos[4], cpos[5]))
+            print("{:d} \t {:6.5f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
+                cit, cv, np.rad2deg(cpos[0]), np.rad2deg(cpos[1]), np.rad2deg(cpos[2]), cpos[3], cpos[4], cpos[5]))
 
     return opt_watcher
+
+
+def winsorize_image(image, p_low, p_high):
+    Dimension = 3
+    PixelType = itk.template(image)[1][0]
+    ImageType = itk.Image[PixelType, Dimension]
+
+    # Histogram
+    nbins = 1000  # Allows 0.001 precision
+    hist_filt = itk.ImageToHistogramFilter[ImageType].New()
+    hist_filt.SetInput(image)
+    hist_filt.SetAutoMinimumMaximum(True)
+    hist_filt.SetHistogramSize([nbins])
+    hist_filt.Update()
+    hist = hist_filt.GetOutput()
+
+    low_lim = hist.Quantile(0, p_low)
+    high_lim = hist.Quantile(0, p_high)
+
+    filt = itk.ThresholdImageFilter[ImageType].New()
+    filt.SetInput(image)
+    filt.ThresholdBelow(low_lim)
+    filt.ThresholdAbove(high_lim)
+    filt.ThresholdOutside(low_lim, high_lim)
+
+    return filt
+
+
+def ants_pyramid(fixed_image_fname, moving_image_fname, output_name, fixed_mask_fname=None, opt_range=[10, 30],
+                 relax_factor=0.5, verbose=True, winsorize=[0.005, 0.995]):
+    """
+    Perform 3D versor registration between two images
+
+    Inputs:
+        - fixed_image: Fixed image
+        - moving_image: Moving image
+        - MetricType: Image metric (MI)
+        - opt_range: Range of expected motion [deg, mm] (10, 30)
+
+    Outputs:
+        - registration: Registration object
+        - reg_out: Registration debug stuff
+    """
+
+    # Read in data
+    PixelType = itk.D
+    ImageType = itk.Image[PixelType, 3]
+
+    ImageReaderType = itk.ImageFileReader[ImageType]
+    moving_reader = ImageReaderType.New()
+    moving_reader.SetFileName(moving_image_fname)
+
+    fixed_reader = ImageReaderType.New()
+    fixed_reader.SetFileName(fixed_image_fname)
+
+    MaskType = itk.Image[itk.UC, 3]
+    mask_reader = itk.ImageFileReader[MaskType].New()
+    mask_reader.SetFileName(fixed_mask_fname)
+
+    # Winsorize filter
+    if winsorize:
+        print("[REG] Winsorising images")
+        fixed_win_filter = winsorize_image(
+            fixed_reader.GetOutput(), winsorize[0], winsorize[1])
+        moving_win_filter = winsorize_image(
+            moving_reader.GetOutput(), winsorize[0], winsorize[1])
+
+        fixed_image = fixed_win_filter.GetOutput()
+        moving_image = moving_win_filter.GetOutput()
+    else:
+        fixed_image = fixed_reader.GetOutput()
+        moving_image = moving_reader.GetOutput()
+
+    # Setup image metric
+    print("[REG] Setting up registration")
+    metric = itk.MattesMutualInformationImageToImageMetricv4[ImageType,
+                                                             ImageType].New()
+    metric.SetNumberOfHistogramBins(16)
+    metric.SetUseMovingImageGradientFilter(False)
+    metric.SetUseFixedImageGradientFilter(False)
+
+    # Setup versor transform
+    TransformType = itk.VersorRigid3DTransform[PixelType]
+    TransformInitializerType = itk.CenteredTransformInitializer[TransformType,
+                                                                ImageType, ImageType]
+
+    initialTransform = TransformType.New()
+    initializer = TransformInitializerType.New()
+
+    initializer.SetTransform(initialTransform)
+    initializer.SetFixedImage(fixed_image)
+    initializer.SetMovingImage(moving_image)
+    initializer.InitializeTransform()
+
+    VersorType = itk.Versor[itk.D]
+    VectorType = itk.Vector[itk.D, 3]
+    rotation = VersorType()
+    axis = VectorType()
+    axis[0] = 0
+    axis[1] = 0
+    axis[2] = 1
+    angle = 0
+    rotation.Set(axis, angle)
+    initialTransform.SetRotation(rotation)
+
+    # Setup optimizer
+    optimizer = itk.RegularStepGradientDescentOptimizerv4[PixelType].New()
+    OptimizerScalesType = itk.OptimizerParameters[PixelType]
+    optimizerScales = OptimizerScalesType(
+        initialTransform.GetNumberOfParameters())
+
+    # Setup registration
+    registration = itk.ImageRegistrationMethodv4[ImageType,
+                                                 ImageType].New()
+    registration.SetMetric(metric)
+    registration.SetOptimizer(optimizer)
+    registration.SetFixedImage(fixed_image)
+    registration.SetMovingImage(moving_image)
+    registration.SetInitialTransform(initialTransform)
+
+    # Set scales <- Not sure about this part
+    rotationScale = 1.0/np.deg2rad(opt_range[0])
+    translationScale = 1.0/opt_range[1]
+    optimizerScales[0] = rotationScale
+    optimizerScales[1] = rotationScale
+    optimizerScales[2] = rotationScale
+    optimizerScales[3] = translationScale
+    optimizerScales[4] = translationScale
+    optimizerScales[5] = translationScale
+    optimizer.SetScales(optimizerScales)
+
+    # Specifications of the Optimizer
+    # Reduce later to different number per level
+    optimizer.SetNumberOfIterations(500)
+    optimizer.SetLearningRate(0.1)          # Default in ANTs
+    optimizer.SetRelaxationFactor(relax_factor)
+    optimizer.SetConvergenceWindowSize(10)
+    optimizer.SetMinimumConvergenceValue(1E-6)
+
+    # One level registration without shrinking and smoothing
+    numberOfLevels = 3
+    shrinkFactorsPerLevel = itk.Array[itk.F](3)
+    shrinkFactorsPerLevel[0] = 4
+    shrinkFactorsPerLevel[1] = 2
+    shrinkFactorsPerLevel[2] = 1
+
+    smoothingSigmasPerLevel = itk.Array[itk.F](3)
+    smoothingSigmasPerLevel[0] = 2
+    smoothingSigmasPerLevel[0] = 1
+    smoothingSigmasPerLevel[0] = 0
+
+    registration.SetNumberOfLevels(numberOfLevels)
+    registration.SetSmoothingSigmasPerLevel(smoothingSigmasPerLevel)
+    registration.SetShrinkFactorsPerLevel(shrinkFactorsPerLevel)
+
+    if fixed_mask_fname:
+        CastFilterType = itk.RescaleIntensityImageFilter[MaskType, MaskType]
+        mask_cast = CastFilterType.New()
+        mask_cast.SetOutputMinimum(0)
+        mask_cast.SetOutputMaximum(1)
+        mask_cast.SetInput(mask_reader.GetOutput())
+        mask_cast.Update()
+        mask_out = mask_cast.GetOutput()
+
+        MaskType = itk.ImageMaskSpatialObject[3]
+        spatial_mask = MaskType.New()
+        spatial_mask.SetImage(mask_out)
+        spatial_mask.Update()
+        # metric.SetFixedImageMask(spatial_mask)
+
+    # Watch the itteration events
+    reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
+               'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
+
+    print("[REG] Running Registration")
+    wf = versor_watcher(reg_out, optimizer, verbose)
+    optimizer.AddObserver(itk.IterationEvent(), wf)
+
+    # --> Run registration
+    registration.Update()
+
+    # Resample moving data
+    print("[REG] Resample moving image")
+    transform = registration.GetTransform()
+    final_parameters = transform.GetParameters()
+
+    TransformType = itk.VersorRigid3DTransform[itk.D]
+    finalTransform = TransformType.New()
+    finalTransform.SetFixedParameters(
+        registration.GetOutput().Get().GetFixedParameters())
+    finalTransform.SetParameters(final_parameters)
+
+    ResampleFilterType = itk.ResampleImageFilter[ImageType,
+                                                 ImageType]
+    resampler = ResampleFilterType.New()
+    resampler.SetTransform(finalTransform)
+    resampler.SetInput(moving_image)
+
+    resampler.SetSize(fixed_image.GetLargestPossibleRegion().GetSize())
+    resampler.SetOutputOrigin(fixed_image.GetOrigin())
+    resampler.SetOutputSpacing(fixed_image.GetSpacing())
+    resampler.SetOutputDirection(fixed_image.GetDirection())
+    resampler.SetDefaultPixelValue(0)
+    resampler.Update()
+
+    # Write output
+    print("[REG] Writing output image")
+    writer = itk.ImageFileWriter[ImageType].New()
+    writer.SetFileName(output_name)
+    writer.SetInput(resampler.GetOutput())
+    writer.Update()
+
+    return registration, reg_out
 
 
 def itk_versor3Dreg_v2(fixed_image, moving_image, verbose=True):
@@ -282,7 +557,7 @@ def itk_versor3Dreg_v2(fixed_image, moving_image, verbose=True):
     return registration, optimizer, reg_out
 
 
-def itk_versor3Dreg_v1(fixed_image, moving_image, metric='MS', opt_range=[10, 30], learning_rate=1,
+def itk_versor3Dreg_v1(fixed_image, moving_image, fixed_mask=None, metric='MS', opt_range=[10, 30], learning_rate=1,
                        min_step_length=0.001, relax_factor=0.5, verbose=True):
     """
     Perform 3D versor registration between two images
@@ -290,7 +565,7 @@ def itk_versor3Dreg_v1(fixed_image, moving_image, metric='MS', opt_range=[10, 30
     Inputs:
         - fixed_image: Fixed image
         - moving_image: Moving image
-        - MetriType: Image metric (MS)
+        - MetricType: Image metric (MS)
         - opt_range: Range of expected motion [deg, mm] (10, 30)
 
     Outputs:
@@ -300,12 +575,12 @@ def itk_versor3Dreg_v1(fixed_image, moving_image, metric='MS', opt_range=[10, 30
 
     # Input specifications
     Dimension = 3
-    PixelType = itk.D
+    PixelType = itk.template(fixed_image)[1][0]
     FixedImageType = itk.Image[PixelType, Dimension]
     MovingImageType = itk.Image[PixelType, Dimension]
 
-    TransformType = itk.VersorRigid3DTransform[itk.D]
-    OptimizerType = itk.RegularStepGradientDescentOptimizerv4[itk.D]
+    TransformType = itk.VersorRigid3DTransform[PixelType]
+    OptimizerType = itk.RegularStepGradientDescentOptimizerv4[PixelType]
 
     if metric == 'MI':
         MetricType = itk.MattesMutualInformationImageToImageMetricv4[FixedImageType,
@@ -353,7 +628,7 @@ def itk_versor3Dreg_v1(fixed_image, moving_image, metric='MS', opt_range=[10, 30
 
     registration.SetInitialTransform(initialTransform)
 
-    OptimizerScalesType = itk.OptimizerParameters[itk.D]
+    OptimizerScalesType = itk.OptimizerParameters[PixelType]
     optimizerScales = OptimizerScalesType(
         initialTransform.GetNumberOfParameters())
 
@@ -387,6 +662,160 @@ def itk_versor3Dreg_v1(fixed_image, moving_image, metric='MS', opt_range=[10, 30
     registration.SetNumberOfLevels(numberOfLevels)
     registration.SetSmoothingSigmasPerLevel([0])
     registration.SetShrinkFactorsPerLevel([1])
+
+    if fixed_mask:
+        dimension = 3
+        MaskInputPixelType = itk.template(fixed_mask)[1][0]
+        MaskOutputPixelType = itk.UC
+        MaskInputImageType = itk.Image[MaskInputPixelType, Dimension]
+        MaskOutputImageType = itk.Image[MaskOutputPixelType, Dimension]
+
+        CastFilterType = itk.RescaleIntensityImageFilter[MaskInputImageType,
+                                                         MaskOutputImageType]
+        mask_cast = CastFilterType.New()
+        mask_cast.SetOutputMinimum(0)
+        mask_cast.SetOutputMaximum(1)
+        mask_cast.SetInput(fixed_mask)
+        mask_cast.Update()
+        mask_out = mask_cast.GetOutput()
+
+        MaskType = itk.ImageMaskSpatialObject[3]
+        spatial_mask = MaskType.New()
+        spatial_mask.SetImage(mask_out)
+        spatial_mask.Update()
+
+    # Watch the itteration events
+    reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
+               'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
+
+    wf = versor_watcher(reg_out, optimizer, verbose)
+    optimizer.AddObserver(itk.IterationEvent(), wf)
+
+    return registration, reg_out
+
+
+def itk_versor3Dreg_v3(fixed_image, moving_image, fixed_mask=None, metric='MI', opt_range=[10, 30], learning_rate=1,
+                       min_step_length=0.001, relax_factor=0.5, verbose=True):
+    """
+    Perform 3D versor registration between two images
+
+    Inputs:
+        - fixed_image: Fixed image
+        - moving_image: Moving image
+        - MetricType: Image metric (MS)
+        - opt_range: Range of expected motion [deg, mm] (10, 30)
+
+    Outputs:
+        - registration: Registration object
+        - reg_out: Registration debug stuff
+    """
+
+    # Input specifications
+    Dimension = 3
+    PixelType = itk.template(fixed_image)[1][0]
+    FixedImageType = itk.Image[PixelType, Dimension]
+    MovingImageType = itk.Image[PixelType, Dimension]
+
+    if metric == 'MI':
+        metric = itk.MattesMutualInformationImageToImageMetricv4[FixedImageType,
+                                                                 MovingImageType].New()
+        metric.SetNumberOfHistogramBins(32)
+    else:
+        metric = itk.MeanSquaresImageToImageMetricv4[FixedImageType,
+                                                     MovingImageType].New()
+
+    optimizer = itk.RegularStepGradientDescentOptimizerv4[PixelType].New()
+
+    registration = itk.ImageRegistrationMethodv4[FixedImageType,
+                                                 MovingImageType].New()
+    registration.SetMetric(metric)
+    registration.SetOptimizer(optimizer)
+    registration.SetFixedImage(fixed_image)
+    registration.SetMovingImage(moving_image)
+
+    TransformType = itk.VersorRigid3DTransform[PixelType]
+    initialTransform = TransformType.New()
+
+    TransformInitializerType = itk.CenteredTransformInitializer[TransformType,
+                                                                FixedImageType, MovingImageType]
+    initializer = TransformInitializerType.New()
+
+    initializer.SetTransform(initialTransform)
+    initializer.SetFixedImage(fixed_image)
+    initializer.SetMovingImage(moving_image)
+    # initializer.MomentsOn()
+    initializer.InitializeTransform()
+
+    VersorType = itk.Versor[itk.D]
+    VectorType = itk.Vector[itk.D, 3]
+    rotation = VersorType()
+    axis = VectorType()
+    axis[0] = 0
+    axis[1] = 0
+    axis[2] = 1
+    angle = 0
+    rotation.Set(axis, angle)
+    initialTransform.SetRotation(rotation)
+
+    registration.SetInitialTransform(initialTransform)
+
+    OptimizerScalesType = itk.OptimizerParameters[PixelType]
+    optimizerScales = OptimizerScalesType(
+        initialTransform.GetNumberOfParameters())
+
+    # Set scales
+    rotationScale = 1.0/np.deg2rad(opt_range[0])
+    translationScale = 1.0/opt_range[1]
+    optimizerScales[0] = rotationScale
+    optimizerScales[1] = rotationScale
+    optimizerScales[2] = rotationScale
+    optimizerScales[3] = translationScale
+    optimizerScales[4] = translationScale
+    optimizerScales[5] = translationScale
+    optimizer.SetScales(optimizerScales)
+
+    ### Specifications of the Optimizer ###
+    optimizer.SetNumberOfIterations(100)
+    optimizer.SetLearningRate(learning_rate)
+    optimizer.SetRelaxationFactor(relax_factor)
+    optimizer.SetMinimumStepLength(min_step_length)
+    # optimizer.SetMaximumStepSizeInPhysicalUnits(1.3)
+    optimizer.SetReturnBestParametersAndValue(True)
+
+    # One level registration without shrinking and smoothing
+    numberOfLevels = 4
+    shrinkFactorsPerLevel = itk.Array[itk.F](numberOfLevels)
+    shrinkFactorsPerLevel[0] = 2
+    shrinkFactorsPerLevel[1] = 1
+
+    smoothingSigmasPerLevel = itk.Array[itk.F](numberOfLevels)
+    smoothingSigmasPerLevel[0] = 1
+    smoothingSigmasPerLevel[0] = 0
+
+    registration.SetNumberOfLevels(numberOfLevels)
+    registration.SetSmoothingSigmasPerLevel(smoothingSigmasPerLevel)
+    registration.SetShrinkFactorsPerLevel(shrinkFactorsPerLevel)
+
+    if fixed_mask:
+        dimension = 3
+        MaskInputPixelType = itk.template(fixed_mask)[1][0]
+        MaskOutputPixelType = itk.UC
+        MaskInputImageType = itk.Image[MaskInputPixelType, Dimension]
+        MaskOutputImageType = itk.Image[MaskOutputPixelType, Dimension]
+
+        CastFilterType = itk.RescaleIntensityImageFilter[MaskInputImageType,
+                                                         MaskOutputImageType]
+        mask_cast = CastFilterType.New()
+        mask_cast.SetOutputMinimum(0)
+        mask_cast.SetOutputMaximum(1)
+        mask_cast.SetInput(fixed_mask)
+        mask_cast.Update()
+        mask_out = mask_cast.GetOutput()
+
+        MaskType = itk.ImageMaskSpatialObject[3]
+        spatial_mask = MaskType.New()
+        spatial_mask.SetImage(mask_out)
+        spatial_mask.Update()
 
     # Watch the itteration events
     reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
@@ -648,3 +1077,7 @@ def normalise_timeseries(TS, iref, nlevels=1024, npoints=10):
             number_of_histogram_levels=nlevels, number_of_match_points=npoints)
 
     return TS_norm
+
+
+def apply_moco_h5(h5_file, R, phase_corr):
+    pass
