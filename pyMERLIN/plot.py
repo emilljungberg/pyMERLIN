@@ -30,7 +30,7 @@ def plot_3plane(I, title='', cmap='gray', vmin=None, vmax=None):
     plt.axis('off')
     plt.title(' ')
 
-    plt.show()
+    # plt.show()
 
 
 def timeseries_video(img_ts, interval=100, title=''):
@@ -71,6 +71,27 @@ def timeseries_video(img_ts, interval=100, title=''):
     plt.close()
 
     return anim.to_html5_video()
+
+
+def compare_timeseries(TS, title):
+    fig = plt.figure(figsize=(14, 4))
+    [nx, ny, nz, nt] = np.shape(TS)
+
+    fig.add_subplot(3, 1, 1)
+    imshow3(TS[int(nx/2), :, :, :]-np.repeat(TS[int(nx/2), :, :, 0:1],
+                                             repeats=nt, axis=-1), nt, 1, vmin=-.3, vmax=.3)
+    plt.title(title, size=20)
+
+    fig.add_subplot(3, 1, 2)
+    imshow3(np.rot90(TS[:, int(ny/2), :, :]-np.repeat(TS[:, int(ny/2),
+                                                         :, 0:1], repeats=nt, axis=-1)), nt, 1, vmin=-.3, vmax=.3)
+
+    fig.add_subplot(3, 1, 3)
+    imshow3(np.rot90(TS[:, :, int(nz/2), :]-np.repeat(TS[:, :, int(nz/2),
+                                                         0:1], repeats=nt, axis=-1), 3), nt, 1, vmin=-.3, vmax=.3)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='col'):
@@ -125,7 +146,7 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
 
                 i += 1
 
-    plt.imshow(I3, cmap=cmap)
+    plt.imshow(I3, cmap=cmap, vmin=vmin, vmax=vmax)
     plt.axis('off')
 
     return I3
