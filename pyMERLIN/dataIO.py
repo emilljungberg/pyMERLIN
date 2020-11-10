@@ -57,7 +57,7 @@ def read_ismrmrd(fname):
     return D
 
 
-def create_image(img_array, spacing, corners=None, max_image_value=None):
+def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=None):
     """
     Creates an itk image object from the img_array. Uses information for
     spacing to set the voxel size and the pfile corner information to get the
@@ -73,7 +73,7 @@ def create_image(img_array, spacing, corners=None, max_image_value=None):
     """
 
     # Can only do single volume
-    img = itk.image_from_array(np.ascontiguousarray(img_array[:, :, :, 0]))
+    img = itk.image_from_array(np.abs(np.ascontiguousarray(img_array)))
 
     # Don't assume isotropic voxels
     img.SetSpacing([float(x) for x in spacing])
@@ -88,8 +88,21 @@ def create_image(img_array, spacing, corners=None, max_image_value=None):
         rescaleFilter.SetOutputMaximum(max_image_value)
         rescaleFilter.Update()
         img_out = rescaleFilter.GetOutput()
+
     else:
         img_out = img
+
+    # Cast filter
+    if dtype:
+        InputPixelType = itk.template(img_out)[1][0]
+        InputImageType = itk.Image[InputPixelType, 3]
+        OutputImageType = itk.Image[dtype, 3]
+
+        cast_filter = itk.CastImageFilter[InputImageType, OutputImageType].New(
+        )
+        cast_filter.SetInput(img_out)
+        cast_filter.Update()
+        img_out = cast_filter.GetOutput()
 
     return img_out
 
