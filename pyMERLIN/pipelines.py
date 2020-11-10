@@ -1,4 +1,4 @@
-from .reg import itk_versor3Dreg_v1, versor_reg_summary, versor_resample, reg_to_kcorr, normalise_timeseries
+from .reg import *
 from .dataIO import *
 from .recon import *
 from .plot import *
@@ -6,6 +6,7 @@ from sigpy import nufft_adjoint
 from sigpy.mri.app import TotalVariationRecon
 from tqdm import tqdm
 import itk
+import pickle
 
 
 def MERLIN_v1(raw, traj, nint, TV_lambda, ds, voxel_size):
@@ -169,3 +170,38 @@ def MERLIN_v1(raw, traj, nint, TV_lambda, ds, voxel_size):
     # Return: phase correction and corrected trajectory
 
     return H_all, traj_corr_all
+
+
+def MERLIN_v2_h5(fixed_image, moving_image, outname):
+    f_mask = None
+    registration, reg_out = ants_pyramid(fixed_image, moving_image, None,
+                                         fixed_mask_fname=None, opt_range=[10, 30], relax_factor=0.5,
+                                         winsorize=False, verbose=True)
+
+    # Calculate correction parameters
+    transform = registration.GetTransform()
+    final_parameters = transform.GetParameters()
+
+    TransformType = itk.VersorRigid3DTransform[itk.D]
+    finalTransform = TransformType.New()
+    finalTransform.SetFixedParameters(
+        registration.GetOutput().Get().GetFixedParameters())
+    finalTransform.SetParameters(final_parameters)
+
+    matrix = convert_itk_matrix(finalTransform.GetMatrix())
+    offset = np.array(finalTransform.GetOffset())
+    regParameters = registration.GetOutput().Get().GetParameters()
+
+    corrections = {'R': matrix,
+                   'rx': regParameters[0],
+                   'ry': regParameters[1],
+                   'rz': regParameters[2],
+                   'dx': regParameters[3],
+                   'dy': regParameters[4],
+                   'dz': regParameters[5]
+                   }
+
+    reg_name = "%s_itkreg.p" % outname
+    pickle.dump(corrections, open(reg_name, "wb"))
+
+    print("[DONE] Registration saved to %s" % reg_name)
