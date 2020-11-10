@@ -254,16 +254,22 @@ def winsorize_image(image, p_low, p_high):
     return filt
 
 
-def ants_pyramid(fixed_image_fname, moving_image_fname, output_name, fixed_mask_fname=None, opt_range=[10, 30],
-                 relax_factor=0.5, verbose=True, winsorize=[0.005, 0.995]):
+def ants_pyramid(fixed_image_fname, moving_image_fname, moco_output_name=None, fixed_output_name=None,
+                 fixed_mask_fname=None, opt_range=[10, 30],
+                 relax_factor=0.5, winsorize=[0.005, 0.995], verbose=True):
     """
     Perform 3D versor registration between two images
 
     Inputs:
-        - fixed_image: Fixed image
-        - moving_image: Moving image
-        - MetricType: Image metric (MI)
+        - fixed_image_fname: Fixed image (h5 file)
+        - moving_image_fname: Moving image (h5 file)
+        - moco_output_name: Save moco image as nifti
+        - fixed_output_name: Save reference image as nifti
+        - fixed_mask_fname: Mask for moving image (h5 file)
         - opt_range: Range of expected motion [deg, mm] (10, 30)
+        - relax_factor: Relaxation factor for optimizer (0.5)
+        - verbose: Show log output (True)
+        - winsorize: Winsorize input data ([0.005, 0.995])
 
     Outputs:
         - registration: Registration object
@@ -274,30 +280,29 @@ def ants_pyramid(fixed_image_fname, moving_image_fname, output_name, fixed_mask_
     PixelType = itk.D
     ImageType = itk.Image[PixelType, 3]
 
-    ImageReaderType = itk.ImageFileReader[ImageType]
-    moving_reader = ImageReaderType.New()
-    moving_reader.SetFileName(moving_image_fname)
+    f_fixed = h5py.File(fixed_image_fname, 'r')
+    f_move = h5py.File(moving_image_fname, 'r')
 
-    fixed_reader = ImageReaderType.New()
-    fixed_reader.SetFileName(fixed_image_fname)
+    data_fixed = f_fixed['data/0000'][:]
+    data_move = f_move['data/0000'][:]
 
-    MaskType = itk.Image[itk.UC, 3]
-    mask_reader = itk.ImageFileReader[MaskType].New()
-    mask_reader.SetFileName(fixed_mask_fname)
+    fixed_image = create_image(
+        data_fixed, f_fixed['info'][0][1], dtype=PixelType)
+    moving_image = create_image(
+        data_move, f_fixed['info'][0][1], dtype=PixelType)
+    f_fixed.close()
+    f_move.close()
 
     # Winsorize filter
     if winsorize:
         print("[REG] Winsorising images")
         fixed_win_filter = winsorize_image(
-            fixed_reader.GetOutput(), winsorize[0], winsorize[1])
+            fixed_image, winsorize[0], winsorize[1])
         moving_win_filter = winsorize_image(
-            moving_reader.GetOutput(), winsorize[0], winsorize[1])
+            moving_image, winsorize[0], winsorize[1])
 
         fixed_image = fixed_win_filter.GetOutput()
         moving_image = moving_win_filter.GetOutput()
-    else:
-        fixed_image = fixed_reader.GetOutput()
-        moving_image = moving_reader.GetOutput()
 
     # Setup image metric
     print("[REG] Setting up registration")
@@ -432,11 +437,19 @@ def ants_pyramid(fixed_image_fname, moving_image_fname, output_name, fixed_mask_
     resampler.Update()
 
     # Write output
-    print("[REG] Writing output image")
-    writer = itk.ImageFileWriter[ImageType].New()
-    writer.SetFileName(output_name)
-    writer.SetInput(resampler.GetOutput())
-    writer.Update()
+    if moco_output_name:
+        print("[REG] Writing moco output image")
+        writer = itk.ImageFileWriter[ImageType].New()
+        writer.SetFileName(moco_output_name)
+        writer.SetInput(resampler.GetOutput())
+        writer.Update()
+
+    if fixed_output_name:
+        print("[REG] Writing reference image")
+        writer = itk.ImageFileWriter[ImageType].New()
+        writer.SetFileName(fixed_output_name)
+        writer.SetInput(fixed_image)
+        writer.Update()
 
     return registration, reg_out
 
