@@ -174,9 +174,15 @@ def MERLIN_v1(raw, traj, nint, TV_lambda, ds, voxel_size):
 
 def MERLIN_v2_h5(fixed_image, moving_image, outname):
     f_mask = None
-    registration, reg_out = ants_pyramid(fixed_image, moving_image, None,
-                                         fixed_mask_fname=None, opt_range=[10, 30], relax_factor=0.5,
-                                         winsorize=False, verbose=True)
+
+    registration, reg_out = ants_pyramid(fixed_image, moving_image, moco_output_name=None, fixed_output_name=None, fixed_mask_fname=None,
+                                         opt_range=[10, 30],
+                                         relax_factor=0.5,
+                                         winsorize=[0.005, 0.995],
+                                         threshold=None,
+                                         sigmas=[2, 1, 0], shrink=[4, 2, 1],
+                                         metric='MS',
+                                         verbose=True)
 
     # Calculate correction parameters
     transform = registration.GetTransform()
