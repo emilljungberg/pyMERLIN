@@ -4,6 +4,21 @@ import xmltodict
 import numpy as np
 import itk
 from shutil import copyfile
+import logging
+import os
+
+
+def check_filename(fname):
+    if os.path.exists(fname):
+        logging.warning("%s already exists" % fname)
+        fpath, fext = os.path.splitext(fname)
+        counter = 1
+        fname = "%s_%d%s" % (fpath, counter, fext)
+        while os.path.exists(fname):
+            counter += 1
+
+    logging.info("%s does not exists" % fname)
+    return fname
 
 
 def read_ismrmrd(fname):
@@ -107,7 +122,18 @@ def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=N
     return img_out
 
 
-def read_h5(h5_file):
+def read_image_h5(h5_file):
+    f = h5py.File(h5_file, 'r')
+
+    data = f['data/0000'][:]
+    spacing = f['info'][0][1]
+
+    f.close()
+
+    return data, spacing
+
+
+def read_radial_h5(h5_file):
     """
     Read riesling h5 file and return python style data and trajectory arrays
     """
