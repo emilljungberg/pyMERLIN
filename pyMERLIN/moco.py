@@ -83,16 +83,14 @@ def moco_interleave(source_h5, dest_h5, corr_pickle):
     f.close()
 
 
-def moco_combined(source_h5, dest_h5, corr_pickle_list, spi, discard_ints=[]):
+def moco_combined(source_h5, dest_h5, reg_list):
     """
     Corrects a combined radial dataset from list of pickle files
 
     Inputs:
         - source_h5: Source file to correct
         - dest_h5: Output file, will first be copied from source
-        - corr_pickle_list: List pickle files with correction factors
-        - spi: Spokes per interleave (assuming fixed width now)
-        - discard_ints: Interleaves to discard, i.e. set to 0.
+        - reg_list: List of registration dictionaries
     """
 
     # Load data
@@ -106,11 +104,9 @@ def moco_combined(source_h5, dest_h5, corr_pickle_list, spi, discard_ints=[]):
 
     info = f['info'][:]
     spacing = info['voxel_size'][0]
-    spokes_hi = info['spokes_hi'][0]
     spokes_lo = info['spokes_lo'][0]
 
-    n_pickle = np.size(corr_pickle_list)
-    n_interleaves = int(spokes_hi/spi)
+    n_interleaves = len(reg_list)
 
     traj = f['traj']
     traj_arr = traj[:]
@@ -122,26 +118,24 @@ def moco_combined(source_h5, dest_h5, corr_pickle_list, spi, discard_ints=[]):
     data_arr_py = pyreshape(data_arr)
     data_arr_py_corr = data_arr_py
 
-    # We assume that we don't correct the first (0th) intereave
+    # We don't correct any lowres spokes
+    idx0 = 0
+    idx1 = int(spokes_lo)
+
     logging.info("Correcting data and trajectories")
-    for (i, pfile) in zip(range(1, n_interleaves), corr_pickle_list):
-        if i in discard_ints:
-            data_arr_py_corr[idx0:idx1, :, :] = 0
-        else:
-            logging.info("Processing %s" % pfile)
-            idx0 = spokes_lo + i*spi    # Assuming first interleave is the reference
-            idx1 = idx0 + spi
+    for (i, D_reg) in zip(range(1, n_interleaves), reg_list):
+        logging.info("Processing interleave %d" % i)
+        idx0 = idx1         # Start where last interleave ended
+        idx1 = idx0 + D_reg['spi']
 
-            traj_int = traj_arr_py[idx0:idx1, :, :]
-            data_int = data_arr_py[idx0:idx1, :, :]
+        traj_int = traj_arr_py[idx0:idx1, :, :]
+        data_int = data_arr_py[idx0:idx1, :, :]
 
-            D_reg = pickle.load(open(pfile, 'rb'))
+        traj_arr_py_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
 
-            traj_arr_py_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
-
-            H = calc_H(traj_int, D_reg, spacing)
-            for ircv in range(np.shape(data_arr_py)[-1]):
-                data_arr_py_corr[idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
+        H = calc_H(traj_int, D_reg, spacing)
+        for ircv in range(np.shape(data_arr_py)[-1]):
+            data_arr_py_corr[idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
 
     logging.info("Writing data back to H5 file")
     data[...] = pyreshape(data_arr_py_corr)
