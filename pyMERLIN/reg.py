@@ -378,7 +378,7 @@ def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0
     optimizer.SetScales(optimizerScales)
 
     logging.info("Setting up optimizer")
-    logging.info("Rot/Trans scales: %d/%d".format(opt_range[0], opt_range[1]))
+    logging.info("Rot/Trans scales: {}/{}".format(opt_range[0], opt_range[1]))
     logging.info("Number of itterations: %d" % nit)
     logging.info("Learning rate: %.2f" % learning_rate)
     logging.info("Relaxation factor: %.2f" % relax_factor)
@@ -439,8 +439,9 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
         raise Exception("Sigma and Shrink arrays must be same length")
 
     # Read in data
-    logging.info("Reading input images")
+    logging.info("Reading fixed image: {}".format(fixed_image_fname))
     data_fix, spacing_fix = read_image_h5(fixed_image_fname)
+    logging.info("Reading moving image: {}".format(moving_image_fname))
     data_move, spacing_move = read_image_h5(moving_image_fname)
     fixed_image = create_image(data_fix, spacing_fix, dtype=PixelType)
     moving_image = create_image(data_move, spacing_move, dtype=PixelType)
