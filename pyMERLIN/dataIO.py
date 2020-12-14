@@ -6,6 +6,27 @@ import itk
 from shutil import copyfile
 import logging
 import os
+import argparse
+
+
+def arg_check_h5(fname):
+    bname, ext = os.path.splitext(fname)
+    if ext.lower() in ['.h5', '.hd5', '.hf5', '.hdf5']:
+        return fname
+
+    return argparse.ArgumentError("{} doesn't seem to have the right file ending (HDF5 file)".format(fname))
+
+
+def arg_check_nii(fname):
+    bname, ext = os.path.splitext(fname)
+    if ext.lower() == '.nii':
+        return fname
+    elif ext.lower() == '.gz':
+        bname2, ext2 = os.path.splitext(ext)
+        if ext2 == '.nii':
+            return fname
+
+    return argparse.ArgumentError("{} doesn't seem to be a valid nifti file".format(fname))
 
 
 def check_filename(fname):
