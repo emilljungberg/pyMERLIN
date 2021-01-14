@@ -14,6 +14,15 @@ from .dataIO import create_image, read_image_h5
 
 
 def sphere_mask(image_reference, radius):
+    """Make spherical mask
+
+    Args:
+        image_reference (itk.Image): Input image
+        radius ([type]): Mask relative radius (<1)
+
+    Returns:
+        itk.Image: Binary brain mask
+    """
 
     img_size = image_reference.GetLargestPossibleRegion().GetSize()
     spacing = np.array(image_reference.GetSpacing())
@@ -33,6 +42,20 @@ def sphere_mask(image_reference, radius):
 
 
 def brain_mask(input_image, hole_radius=5, dilation=3, gauss_variance=100, gauss_max_ker=30):
+    """Brain mask based on Otsu filter
+
+    Also applies hold filling, mask dilation, and smoothing on final mask
+
+    Args:
+        input_image (itk.Image): Input image
+        hole_radius (int, optional): Hole radius to fill. Defaults to 5.
+        dilation (int, optional): Dilate mask by X voxels. Defaults to 3.
+        gauss_variance (int, optional): Variance of smoothing filter. Defaults to 100.
+        gauss_max_ker (int, optional): Max kernel width of smoothing filter. Defaults to 30.
+
+    Returns:
+        itk.Image: Brain mask
+    """
     Dimension = 3
     InputPixelType = itk.template(input_image)[1][0]
     OutputPixelType = itk.UC
@@ -92,6 +115,15 @@ def brain_mask(input_image, hole_radius=5, dilation=3, gauss_variance=100, gauss
 
 
 def otsu_filter(image):
+    """Applies an Otsu filter
+
+    Args:
+        image (itk.Image): Input image
+
+    Returns:
+        itk.OtsuThresholdImageFilter: Filter
+    """
+
     print("Performing Otsu thresholding")
     OtsuOutImageType = itk.Image[itk.UC, 3]
     filt = itk.OtsuThresholdImageFilter[type(image),
@@ -103,16 +135,18 @@ def otsu_filter(image):
 
 
 def versor_reg_summary(registrations, reg_outs, names=None, doprint=True, show_legend=True):
-    """
-    Summarise results from one or more versor registration experiments
+    """Summarise results from one or more versor registration experiments
 
-    Inputs:
-        - registrations: List or registration objects
-        - reg_outs: List of dictionaries of registration outputs
-        - names: List of names
 
-    Outputs:
-        - df: Dataframe with summary of results
+    Args:
+        registrations (list): List of registration objects
+        reg_outs (list): List of dictionaries of registration outputs
+        names (list, optional): Labels for each registration. Defaults to None.
+        doprint (bool, optional): Print output. Defaults to True.
+        show_legend (bool, optional): Show plot legend. Defaults to True.
+
+    Returns:
+        pandas.DataFrame: Summary of registrations
     """
 
     df_dict = {}
@@ -229,10 +263,17 @@ def versor_reg_summary(registrations, reg_outs, names=None, doprint=True, show_l
     return df
 
 
-def versor_watcher(reg_out, optimizer, verbose):
-    # if verbose:
-        # print("{:s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s}".format(
-            # 'Itt', 'Value', 'vX [deg]', 'vY [deg]', 'vZ [deg]', 'tX [mm]', 'tY [mm]', 'tZ [mm]'))
+def versor_watcher(reg_out, optimizer):
+    """Logging for registration
+
+    Args:
+        reg_out (dict): Structure for logging registration
+        optimizer (itk.RegularStepGradientDescentOptimizerv4): Optimizer object
+
+    Returns:
+        function: Logging function
+    """
+
     logging.debug("{:s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s}".format(
         'Itt', 'Value', 'vX [deg]', 'vY [deg]', 'vZ [deg]', 'tX [mm]', 'tY [mm]', 'tZ [mm]'))
 
@@ -254,10 +295,6 @@ def versor_watcher(reg_out, optimizer, verbose):
         reg_out['sl'].append(sl)
         reg_out['lrr'].append(lrr)
 
-        # Printing
-        # if verbose:
-        # print("{:d} \t {:6.5f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
-        # cit, cv, np.rad2deg(cpos[0]), np.rad2deg(cpos[1]), np.rad2deg(cpos[2]), cpos[3], cpos[4], cpos[5]))
         logging.debug("{:d} \t {:6.5f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
             cit, cv, np.rad2deg(cpos[0]), np.rad2deg(cpos[1]), np.rad2deg(cpos[2]), cpos[3], cpos[4], cpos[5]))
 
@@ -265,6 +302,17 @@ def versor_watcher(reg_out, optimizer, verbose):
 
 
 def winsorize_image(image, p_low, p_high):
+    """Applies winsorize filter to image
+
+    Args:
+        image (itk.Image): Input image
+        p_low (float): Lower percentile
+        p_high (float): Upper percentile
+
+    Returns:
+        itk.ThresholdImageFilter: Threshold filter
+    """
+
     Dimension = 3
     PixelType = itk.template(image)[1][0]
     ImageType = itk.Image[PixelType, Dimension]
@@ -291,7 +339,16 @@ def winsorize_image(image, p_low, p_high):
 
 
 def threshold_image(image, low_lim):
-    "Sets everything below low_lim to 0"
+    """Threshold image at given value
+
+    Args:
+        image (itk.Image): Input image
+        low_lim (float): Lower threshold
+
+    Returns:
+        itk.Image: Thresholded image
+    """
+
     Dimension = 3
     PixelType = itk.template(image)[1][0]
     ImageType = itk.Image[PixelType, Dimension]
@@ -306,6 +363,16 @@ def threshold_image(image, low_lim):
 
 
 def resample_image(registration, moving_image, fixed_image):
+    """Resample image with registration parameters
+
+    Args:
+        registration (itk.ImageRegistrationMethodv4): Registration object
+        moving_image (itk.Image): Moving image
+        fixed_image (itk.Image): Fixed image
+
+    Returns:
+        itk.ResampleImageFilter: Resampler filter
+    """
     logging.info("Resampling moving image")
     transform = registration.GetTransform()
     final_parameters = transform.GetParameters()
@@ -333,6 +400,15 @@ def resample_image(registration, moving_image, fixed_image):
 
 
 def get_versor_factors(registration):
+    """Calculate correction factors from Versor object
+
+    Args:
+        registration (itk.ImageRegistrationMethodv4): Registration object
+
+    Returns:
+        dict: Correction factors
+    """
+
     transform = registration.GetTransform()
     final_parameters = transform.GetParameters()
 
@@ -359,6 +435,21 @@ def get_versor_factors(registration):
 
 
 def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0.1, convergence_window_size=10, convergence_value=1E-6):
+    """Setup optimizer object
+
+    Args:
+        PixelType (itkCType): ITK pixel type
+        opt_range (list): Range for optimizer
+        relax_factor (float): Relaxation factor
+        nit (int, optional): Number of iterations. Defaults to 250.
+        learning_rate (float, optional): Optimizer learning rate. Defaults to 0.1.
+        convergence_window_size (int, optional): Number of points to use in evaluating convergence. Defaults to 10.
+        convergence_value ([type], optional): Value at which convergence is reached. Defaults to 1E-6.
+
+    Returns:
+        itk.RegularStepGradientDescentOptimizerv4: Optimizer object
+    """
+
     logging.info("Initialising Regular Step Gradient Descent Optimizer")
     optimizer = itk.RegularStepGradientDescentOptimizerv4[PixelType].New()
     OptimizerScalesType = itk.OptimizerParameters[PixelType]
@@ -406,24 +497,36 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
                  sigmas=[2, 1, 0], shrink=[4, 2, 1],
                  metric='MS',
                  verbose=2):
-    """
-    Perform 3D versor registration between two images
+    """Multi-scale rigid body registration
 
-    Inputs:
-        - fixed_image_fname: Fixed image (h5 file)
-        - moving_image_fname: Moving image (h5 file)
-        - moco_output_name: Save moco image as nifti
-        - fixed_output_name: Save reference image as nifti
-        - fixed_mask_fname: Mask for moving image (h5 file)
-        - opt_range: Range of expected motion [deg, mm] (10, 30)
-        - relax_factor: Relaxation factor for optimizer (0.5)
-        - verbose: Show log output (0,1,2)
-        - winsorize: Winsorize input data ([0.005, 0.995])
+    ITK registration framework inspired by ANTs which performs a multi-scale 3D versor registratio between two 3D volumes. The input data is provided as .h5 image files. 
 
-    Outputs:
-        - registration: Registration object
-        - reg_out: Registration debug stuff
+    Prior to registration a number of filters can be applied
+
+        - Winsorize (not recommended)
+        - Thresholding (recommended)
+
+    Args:
+        fixed_image_fname (str): Fixed file (.h5 file)
+        moving_image_fname (str): Moving file (.h5 file)
+        moco_output_name (str, optional): Output moco image as nifti. Defaults to None.
+        fixed_output_name (str, optional): Output fixed image as nifti. Defaults to None.
+        fixed_mask_radius (int, optional): Radius of spherical mask for fixed image. Defaults to None.
+        reg_par_name (str, optional): Name of output parameter file. Defaults to None.
+        iteration_log_fname (str, optional): Name for output log file. Defaults to None.
+        opt_range (list, optional): Expected range of motion [deg,mm]. Defaults to [10, 30].
+        relax_factor (float, optional): Relaxation factor for optimizer. Defaults to 0.5.
+        winsorize (list, optional): Limits for winsorize filter. Defaults to [0.005, 0.995].
+        threshold (float, optional): Lower value for threshold filter . Defaults to None.
+        sigmas (list, optional): Smoothing sigmas for registration. Defaults to [2, 1, 0].
+        shrink (list, optional): Shring factors for registration. Defaults to [4, 2, 1].
+        metric (str, optional): Image metric for registrationn (MI/MS). Defaults to 'MS'.
+        verbose (int, optional): Level of debugging (0/1/2). Defaults to 2.
+
+    Returns:
+        (itk.ImageRegistrationMethodv4, dict, str): Registration object, Registration history, Name of output file with correction factors
     """
+
     # Logging
     log_level = {0: None, 1: logging.INFO, 2: logging.DEBUG}
     logging.basicConfig(

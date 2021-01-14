@@ -6,13 +6,15 @@ from .dataIO import *
 
 
 def calc_H(traj, D, spacing):
-    """
-    Calculate phase correction matrix
+    """Calculate phase correction matrix 
 
-    Inputs:
-        traj: trajectory
-        D: Dictionary with correction factors
-        spacing: Voxel spacing in data to be corrected
+    Args:
+        traj (array): Trajectory to correct
+        D (dict): Correction factors ({'dx','dy', 'dz'})
+        spacing (array): Voxel spacing [x,y,z]
+
+    Returns:
+        array: Phase correction matrix
     """
 
     dx = D['dx']/spacing[0]
@@ -29,23 +31,26 @@ def calc_H(traj, D, spacing):
 
 
 def pyreshape(arr):
-    """
-    Reshape radial between python and riesling format
+    """Reshapes data for riesling
+
+    Args:
+        arr (array): Input array
+
+    Returns:
+        array: Reformatted
     """
 
     return np.reshape(np.reshape(arr, [1, np.prod(np.shape(arr))]), np.shape(arr)[::-1])
 
 
 def moco_interleave(source_h5, dest_h5, corr_pickle):
-    """
-    Corrects h5 file based on correction factors in pickle file
+    """Apply motion correctionn to h5 interleave
 
-    Inputs:
-        - source_h5: Source file to correct
-        - dest_h5: Output file, will first be copied from source
-        - corr_pickle: Correction factors in pickle file
+    Args:
+        source_h5 (str): Source .h5 file to correct
+        dest_h5 (str): Output filename for corrected .h5 file
+        corr_pickle (str): Pickle file with correction factors
     """
-
     valid_dest_h5 = check_filename(dest_h5)
 
     logging.info("Copying source file")
@@ -84,13 +89,12 @@ def moco_interleave(source_h5, dest_h5, corr_pickle):
 
 
 def moco_combined(source_h5, dest_h5, reg_list):
-    """
-    Corrects a combined radial dataset from list of pickle files
+    """Corrects a combined radial dataset from list of pickle files
 
-    Inputs:
-        - source_h5: Source file to correct
-        - dest_h5: Output file, will first be copied from source
-        - reg_list: List of registration dictionaries
+    Args:
+        source_h5 (str): Source file to correct
+        dest_h5 (str): Output file, will first be copied from source
+        reg_list (list): List of registration dictionaries
     """
 
     # Load data

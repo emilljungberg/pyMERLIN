@@ -1,15 +1,31 @@
-import ismrmrd
-import h5py
-import xmltodict
-import numpy as np
-import itk
-from shutil import copyfile
+# -*- coding: utf-8 -*-
+"""
+MERLIN includes several convenience functinos for data input and output. 
+Since pyMERLIN is tightly integrated with RIESLING, functions for reading k-space and image .h5 files have been included.
+"""
+
+import argparse
 import logging
 import os
-import argparse
+from shutil import copyfile
+
+import ismrmrd
+import itk
+import h5py
+import numpy as np
+import xmltodict
 
 
 def arg_check_h5(fname):
+    """Check h5 file ending
+
+    Args:
+        fname (str): Filename to check
+
+    Returns:
+        str: Filename or error
+    """
+
     bname, ext = os.path.splitext(fname)
     if ext.lower() in ['.h5', '.hd5', '.hf5', '.hdf5']:
         return fname
@@ -18,6 +34,15 @@ def arg_check_h5(fname):
 
 
 def arg_check_nii(fname):
+    """Check nifti file ending
+
+    Args:
+        fname (str): Filename to check
+
+    Returns:
+        str: Filename or error
+    """
+
     bname, ext = os.path.splitext(fname)
     if ext.lower() == '.nii':
         return fname
@@ -30,6 +55,19 @@ def arg_check_nii(fname):
 
 
 def check_filename(fname):
+    """
+    Check if file exists
+
+    If file already exist it will append a number to produce a unique filename.
+
+
+    Args:
+        fname (str): Filename
+
+    Returns:
+        str: Unique filename 
+    """
+
     if os.path.exists(fname):
         logging.warning("%s already exists" % fname)
         fpath, fext = os.path.splitext(fname)
@@ -39,10 +77,19 @@ def check_filename(fname):
             counter += 1
 
     logging.info("%s does not exists" % fname)
+
     return fname
 
 
 def read_ismrmrd(fname):
+    """Read ISMRM Raw Data format
+
+    Args:
+        fname (str): ISMRM Raw Data filename
+
+    Returns:
+        dict: Data and meta data as dictionary
+    """
 
     # Read in dataset as ISMRM Raw Data file to get header
     f_ismrmrd = ismrmrd.Dataset(fname, '/dataset', True)
@@ -94,18 +141,19 @@ def read_ismrmrd(fname):
 
 
 def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=None):
-    """
-    Creates an itk image object from the img_array. Uses information for
-    spacing to set the voxel size and the pfile corner information to get the
-    correct orientation.
+    """Create an ITK image object from array
 
-    Inputs:
-        img_array: Image array as numpy matrix
-        spacing: Voxel size (dx,dy,dz)
-        corners: NOT IMPLEMENTED
+    Will take magnitude of the data. Does not impose any geometry.
 
-    Outputs:
-        img: ITK image object
+    Args:
+        img_array (array): 3D image array 
+        spacing (list): Voxel size (dx,dy,dz)
+        corners (list, optional): Not implemented. Defaults to None.
+        max_image_value (float, optional): Rescale data to max value. Defaults to None.
+        dtype (itk.dtype, optional): ITK data type for casting. Defaults to None.
+
+    Returns:
+        itk.Image: ITK Image object
     """
 
     # Can only do single volume
@@ -144,6 +192,15 @@ def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=N
 
 
 def read_image_h5(h5_file):
+    """Read image h5 file
+
+    Args:
+        h5_file (str): File name
+
+    Returns:
+        (array,array): Image array and voxel spacing
+    """
+
     f = h5py.File(h5_file, 'r')
 
     data = f['data/0000'][:]
@@ -155,8 +212,13 @@ def read_image_h5(h5_file):
 
 
 def read_radial_h5(h5_file):
-    """
-    Read riesling h5 file and return python style data and trajectory arrays
+    """Read radial k-space h5 file
+
+    Args:
+        h5_file (str): Filename
+
+    Returns:
+        (array,array): k-space data and trajectory
     """
 
     f = h5py.File(h5_file, 'r')
@@ -176,6 +238,20 @@ def read_radial_h5(h5_file):
 
 
 def modify_h5(source_h5, dest_h5, data, traj):
+    """Modify h5 file
+
+    Use base h5 file to produce new h5 file with
+    new data and trajectory/
+
+    Args:
+        source_h5 (str): Filename of source h5 file
+        dest_h5 (str): Filename of destination h5 file
+        data (array): K-space data
+        traj (array): Trajectory
+
+    Returns:
+        str: Filename of destination h5 file
+    """
 
     try:
         os.remove(dest_h5)

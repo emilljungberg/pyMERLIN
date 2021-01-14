@@ -8,21 +8,21 @@ fibonacciNum = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144,
                 233, 377, 610, 987, 1597, 2584, 4181, 6765]
 
 
-def traj_phyllotaxis_sqrt(n, nint):
+def piccini_phyllotaxis(n, nint):
     """
     Generate a spiral phyllotaxis trajectory with square root z-modulation
-    according to formulation by Piccini et al.
-    Note, this does not give a uniform FOV but slightly higher sampling
-    in the x/y plane than along z
+    according to formulation by Piccini et al. Note, this does not give a uniform
+    FOV but slightly higher sampling in the x/y plane than along z.
 
-    Input:
-        n: Number of spokes
-        nint: Number of interleaves (Fibonacci number)
+    Args:
+        n (int): Number of spokes
+        nint (int): Number of interleaves
 
-    Output:
-        traj: Trajectory with interleaves stacked
+    Returns:
+        [array]: Trajectory
 
-    Ref: Piccini D, et al., Magn Reson Med. 2011;66(4):1049–56.
+    References:
+        Piccini D, et al., Magn Reson Med. 2011;66(4):1049–56.
     """
 
     # Check inputs
@@ -70,12 +70,20 @@ def traj_phyllotaxis_sqrt(n, nint):
     return traj
 
 
-def traj_phyllotaxis_acos(n, nint):
+def swinbank_phyllotaxis(n, nint):
     """
-    Generate a spiral phyllotaxis trajectory with cosine  z-modulation
+    Generate a spiral phyllotaxis trajectory with cosine z-modulation
     for uniform spherical sampling.
 
-    Ref: Swinbank R, Purser RJ., Q J R Meteorol Soc. 2006;132(619):1769–93.
+    Args:
+        n (int): Number of spokes
+        nint (int): Number of interleaves
+
+    Returns:
+        [array]: Trajectory
+
+    References: 
+        Swinbank R, Purser RJ., Q J R Meteorol Soc. 2006;132(619):1769–93.
     """
 
     # Check inputs
@@ -116,6 +124,21 @@ def traj_phyllotaxis_acos(n, nint):
 
 
 def linear_phyllotaxis(n, nint, sf):
+    """Isotropic Phyllotaxis trajectory with linear interleave ordering
+    and arbitrary smoothness factor
+
+    Args:
+        n (int): Number of spokes
+        nint (int): Number of interleaves
+        sf (int): Smoothness factor
+
+    Returns:
+        array: Trajectory
+
+    References:
+        1. Swinbank R, Purser RJ., Q J R Meteorol Soc. 2006;132(619):1769–93.
+        2. Piccini D, et al., Magn Reson Med. 2011;66(4):1049–56.
+    """
 
     traj = np.zeros((n, 3))
     spi = int(n/nint)
@@ -137,30 +160,19 @@ def linear_phyllotaxis(n, nint, sf):
     return traj
 
 
-def infinite_phyllotaxis(n, nint, sf):
-    traj = np.zeros((n, 3))
-    spi = int(n/nint)
-
-    i = np.arange(spi)
-    phi0 = i * PHI_GOLD * fibonacciNum[sf]
-    z0 = 1 - 2*i/spi
-    r = 1
-    g = 3-np.sqrt(5)
-
-    for k in range(nint):
-        dz = np.mod(g*k, 1)*2/spi
-        z = z0 - dz
-        phi = phi0 + k * PHI_GOLD
-
-        theta = np.arccos(z)
-        traj[k*spi: (k+1)*spi, 0] = r * np.sin(theta) * np.cos(phi)
-        traj[k*spi: (k+1)*spi, 1] = r * np.sin(theta) * np.sin(phi)
-        traj[k*spi: (k+1)*spi, 2] = r * z
-
-    return traj
-
-
 def wong_roos_trajectory(n):
+    """3D Radial trajectory as formulated by Wong and Roos
+
+    Args:
+        n (int): Number of spokes
+
+    Returns:
+        array: Trajectory
+
+    References:
+        S. T. S. Wong and M. S. Roos, “A strategy for sampling on a sphere applied to 3D selective RF pulse design,” 
+        Magn. Reson. Med., vol. 32, no. 6, pp. 778–784, 1994.
+    """
 
     traj = np.zeros((n, 3))
     ni = np.arange(1, n+1)
@@ -175,6 +187,20 @@ def wong_roos_trajectory(n):
 
 
 def wong_roos_interleaved_trajectory(n, nint):
+    """Interleaved trajectory by Wong and Roos
+
+    Args:
+        n (int): Number of spokes
+        nint (int): Number of interleaves
+
+    Returns:
+        array: Trajectory
+
+    References:
+        S. T. S. Wong and M. S. Roos, “A strategy for sampling on a sphere applied to 3D selective RF pulse design,” 
+        Magn. Reson. Med., vol. 32, no. 6, pp. 778–784, 1994.
+    """
+
     traj = np.zeros((n, 3))
     spi = int(n/nint)
     ni = np.arange(1, spi+1)
@@ -197,13 +223,13 @@ def traj2points(traj, npoints, OS):
     """
     Transform spoke trajectory to point trajectory
 
-    Input:
+    Args:
         traj: Trajectory with shape [nspokes, 3]
         npoints: Number of readout points along spokes
         OS: Oversampling
 
-    Output:
-        trajp: Trajectory with shape [nspokes, npoints, 3]
+    Returns:
+        array: Trajectory with shape [nspokes, npoints, 3]
     """
 
     [nspokes, ndim] = np.shape(traj)
@@ -215,33 +241,29 @@ def traj2points(traj, npoints, OS):
     return traj_p
 
 
-def dc_filter(n):
-    """
-    Simple r^2 DC filter for 3D radial acquisition
-    """
+####### OLD ########
 
-    r = np.linspace(0, 1, num=n)
-    dcf = r**2
+def infinite_phyllotaxis(n, nint, sf):
+    traj = np.zeros((n, 3))
+    spi = int(n/nint)
 
-    return dcf
+    i = np.arange(spi)
+    phi0 = i * PHI_GOLD * fibonacciNum[sf]
+    z0 = 1 - 2*i/spi
+    r = 1
+    g = 3-np.sqrt(5)
 
+    for k in range(nint):
+        dz = np.mod(g*k, 1)*2/spi
+        z = z0 - dz
+        phi = phi0 + k * PHI_GOLD
 
-def fermi_filter(n, rf, wf):
-    """
-    Fermi filter for radial out data
+        theta = np.arccos(z)
+        traj[k*spi: (k+1)*spi, 0] = r * np.sin(theta) * np.cos(phi)
+        traj[k*spi: (k+1)*spi, 1] = r * np.sin(theta) * np.sin(phi)
+        traj[k*spi: (k+1)*spi, 2] = r * z
 
-    Inputs:
-        - n: Number of points along spoke
-        - rf: Filter radius
-        - wf: Filter width
-
-    Outputs:
-        - filt: 1D Fermi filter
-    """
-    r = np.linspace(0, 1, num=n)
-    filt = 1.0/(1+np.exp((r-rf)/wf))
-
-    return filt
+    return traj
 
 
 def sense_selfcalib(y, coord, oshape=None, rf=0.25, wf=0.05):
@@ -277,6 +299,35 @@ def sense_selfcalib(y, coord, oshape=None, rf=0.25, wf=0.05):
     SENSE = I_coils/I_rss
 
     return SENSE
+
+
+def dc_filter(n):
+    """
+    Simple r^2 DC filter for 3D radial acquisition
+    """
+
+    r = np.linspace(0, 1, num=n)
+    dcf = r**2
+
+    return dcf
+
+
+def fermi_filter(n, rf, wf):
+    """
+    Fermi filter for radial out data
+
+    Inputs:
+        - n: Number of points along spoke
+        - rf: Filter radius
+        - wf: Filter width
+
+    Outputs:
+        - filt: 1D Fermi filter
+    """
+    r = np.linspace(0, 1, num=n)
+    filt = 1.0/(1+np.exp((r-rf)/wf))
+
+    return filt
 
 
 def rss(I_coils):
