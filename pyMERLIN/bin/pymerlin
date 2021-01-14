@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from pyMERLIN.main_pymerlin import PyMerlin_parser
+
+if __name__ == '__main__':
+    PyMerlin_parser()
