@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from pyMERLIN.dataIO import arg_check_h5, arg_check_nii
-from pyMERLIN.moco import moco_combined
-from pyMERLIN.reg import ants_pyramid
+from pymerlin.dataIO import arg_check_h5, arg_check_nii
+from pymerlin.moco import moco_combined
+from pymerlin.reg import ants_pyramid
 
 
 class PyMerlin_parser(object):
@@ -349,7 +349,11 @@ def main_view(args):
     plt.show()
 
 
-if __name__ == '__main__':
+def main():
     # Everything is executed by initialising this class.
     # The command line arguments will be parsed and the appropriate function will be called
     PyMerlin_parser()
+
+
+if __name__ == '__main__':
+    main()
