@@ -2,3 +2,8 @@ itk
 sigpy
 h5py
 ismrmrd
+pandas
+xmltodict
+shutil
+logging
+tqdm

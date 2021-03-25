@@ -3,6 +3,11 @@ import setuptools
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
+requirements = []
+with open('requirements.txt', 'r') as fh:
+    for line in fh:
+        requirements.append(line.strip())
+
 setuptools.setup(
     name="pymerlin-EMILLJUNGBERG",  # Replace with your own username
     version="0.1",
@@ -25,7 +30,8 @@ setuptools.setup(
     python_requires=">=3.6",
     entry_points={
         'console_scripts': [
-            'pymerlin=pymerlin.main_pymerlin:main'
+            'pymerlin=pymerlin.main_pymerlin:main',
+            'h5viewer=pymerlin.h5viewer:main'
         ]
     }
 )
