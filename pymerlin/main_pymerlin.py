@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from pymerlin.dataIO import arg_check_h5, arg_check_nii
-from pymerlin.moco import moco_combined
-from pymerlin.reg import ants_pyramid
+from .dataIO import arg_check_h5, arg_check_nii
+from .moco import moco_combined
+from .reg import ants_pyramid
 
 
 class PyMerlin_parser(object):

@@ -655,7 +655,7 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
                'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
 
     logging.info("Running Registration")
-    wf = versor_watcher(reg_out, optimizer, verbose)
+    wf = versor_watcher(reg_out, optimizer)
     optimizer.AddObserver(itk.IterationEvent(), wf)
 
     # --> Run registration
@@ -823,7 +823,7 @@ def itk_versor3Dreg_v2(fixed_image, moving_image, verbose=True):
     reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
                'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
 
-    wf = versor_watcher(reg_out, optimizer, verbose)
+    wf = versor_watcher(reg_out, optimizer)
     optimizer.AddObserver(itk.IterationEvent(), wf)
 
     return registration, optimizer, reg_out
@@ -960,7 +960,7 @@ def itk_versor3Dreg_v1(fixed_image, moving_image, fixed_mask=None, metric='MS', 
     reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
                'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
 
-    wf = versor_watcher(reg_out, optimizer, verbose)
+    wf = versor_watcher(reg_out, optimizer)
     optimizer.AddObserver(itk.IterationEvent(), wf)
 
     return registration, reg_out
@@ -1093,7 +1093,7 @@ def itk_versor3Dreg_v3(fixed_image, moving_image, fixed_mask=None, metric='MI', 
     reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
                'vX': [], 'vY': [], 'vZ': [], 'sl': [], 'lrr': []}
 
-    wf = versor_watcher(reg_out, optimizer, verbose)
+    wf = versor_watcher(reg_out, optimizer)
     optimizer.AddObserver(itk.IterationEvent(), wf)
 
     return registration, reg_out

@@ -1,0 +1,219 @@
+#!/bin/bash
+#
+# Script to run the full MERLIN motion correction pipeline with
+# a fixed window navigator
+#
+
+usage() {
+    cat <<EOF
+    usage: bash run_merlin -i input_file -n spokes_per_int
+
+    Required arguments
+    -i      | --input       
+    -n      | --nspokes
+
+    Optional arguments
+    --out   | Output folder (./<input_mocodir>)
+    --thr   | Navigator image threshold (300)
+    --its   | CG SENSE iterations (8)
+    --ds    | Navigator downsampling (3)
+    --fov   | MOCO field of view (240)
+    --ow    | Overwrite files without asking
+    -v      | --verbose (0)
+    -h      | --help        
+EOF
+}
+
+echolog() {
+    s="[$(date "+%F %T")] $1"
+    echo $s
+    echo $s >>log.out
+}
+
+check_rm_folder() {
+    # Checks if folder exists and removes if desired
+    # Inputs:
+    #   $1 folder to create
+    #   $2 Binary flag to overwrite
+
+    new_folder=$1
+    ow_flag=$2
+
+    if [[ -d $new_folder ]]; then
+        if [[ $ow_flag -eq 1 ]]; then
+            echolog "You chose to overwrite files, removing $new_folder"
+            rm -r $new_folder
+        fi
+    fi
+
+}
+
+# Default values
+input_file=
+nspokes=
+moco_folder=
+nav_thr=300
+cg_its=8
+ds=3
+fov=240
+overwrite_files=0
+verbose=0
+riesling_verbose=""
+
+# Parse commandline argument
+while [ "$1" != "" ]; do
+    case $1 in
+    -i | --input)
+        shift
+        input_file=$1
+        ;;
+    -n | --nspokes)
+        shift
+        nspokes=$1
+        ;;
+    --out)
+        shift
+        moco_folder=$1
+        ;;
+    --thr)
+        shift
+        nav_thr=$1
+        ;;
+    --its)
+        shift
+        cg_its=$1
+        ;;
+    --ds)
+        shift
+        ds=$1
+        ;;
+    --fov)
+        shift
+        fov=$1
+        ;;
+    --ow)
+        shift
+        overwrite_files=1
+        ;;
+    -v | --verbose)
+        shift
+        verbose=1
+        ;;
+    -h | --help)
+        usage
+        exit
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+    esac
+    shift
+done
+
+# Checking commandline arguments
+if [ -z $input_file ]; then
+    echo "Input file is required. Use flag -i / --input"
+    exit
+fi
+
+if [[ ! -e $input_file ]]; then
+    echo "Input file ${input_file} does not exist"
+    exit
+fi
+
+if [ -z $nspokes ]; then
+    echo "Number of spokes per interleave required. Use flag -n / --nspokes"
+    exit
+fi
+
+if [[ $verbose -eq 1 ]]; then
+    riesling_verbose="-v"
+fi
+
+# Parse input file
+filename=$(basename -- "$input_file")
+extension="${filename##*.}"
+input_basename="${filename%.*}"
+
+fullpath_input=$(realpath ${input_file})
+
+# Create output folder
+if [[ -z $moco_folder ]]; then
+    moco_folder=${input_basename}_mocodir
+fi
+
+if [[ -d $moco_folder ]]; then
+    echo "$moco_folder already exists"
+else
+    mkdir $moco_folder
+fi
+
+cd $moco_folder
+# Summary of moco
+echolog "-------------------------------------------------------------------"
+echolog "Starting MERLIN. Input file: ${fullpath_input}"
+
+# Step 1 - Producing interleaves
+echolog "[Step 1] Splitting input file into navigator volumes with riesling split"
+int_folder="interleaves"
+check_rm_folder $int_folder $overwrite_files
+if [[ ! -d $int_folder ]]; then
+    mkdir $int_folder
+    riesling split -o ${int_folder}/${input_basename} --nspokes=$nspokes --ds=$ds $riesling_verbose $fullpath_input
+else
+    echolog "$int_folder folder already exists, skipping this step"
+fi
+
+num_interleaves=$(ls ${int_folder} | wc -l)
+echolog "Reconstructed ${num_interleaves} interleaves"
+
+# Step 2 - Reconstruct navigators
+echolog "Step 2 - Reconstructing navigators"
+nav_folder="navigators"
+check_rm_folder $nav_folder $overwrite_files
+
+if [[ ! -d $nav_folder ]]; then
+    mkdir $nav_folder
+    for ((i = 0; i < $(($num_interleaves - 1)); i++)); do
+        int_file=${int_folder}/${input_basename}-int${i}.h5
+        out_file=${nav_folder}/${input_basename}-nav${i}
+        echolog "Reconstructing $int_file"
+        riesling cg --magnitude --oft=h5 --fov=$fov --max_its=$cg_its --out=$out_file $riesling_verbose $int_file
+    done
+else
+    echolog "$nav_folder folder already exists, skipping this step"
+fi
+echolog "Step 2 - Done!"
+
+# Step 3 - Registering navigators
+echolog "[Step 3] Registering navigators (Not implemented)"
+reg_folder="registrations"
+check_rm_folder $reg_folder $overwrite_files
+ref_nav=0
+all_reg_obj=all_reg_param.p
+
+if [[ ! -d $reg_folder ]]; then
+    mkdir $reg_folder
+    ref_nav=${nav_folder}/${input_basename}-nav${ref_nav}-cg.h5
+
+    # Initialise the combined reg param object
+    pymerlin merge --input=0 --reg=${all_reg_obj} --spi=$nspokes --verbose=2
+
+    for ((i = 1; i < $(($num_interleaves - 1)); i++)); do
+        move_nav=${nav_folder}/${input_basename}-nav${i}-cg.h5
+        regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p
+
+        # Run registration and merge registration objects
+        pymerlin reg --fixed=$ref_nav --moving=$move_nav --thr=$nav_thr --verbose=2 --reg=$regname
+        pymerlin merge --reg=${all_reg_obj} --input=$regname --spi=$nspokes --verbose=2
+    done
+else
+    echolog "$reg_folder folder already exists, skipping this step."
+fi
+
+# Step 4 - Perform motion correction
+echolog "[Step 4] Performing motion correction"
+pymerlin moco --input=$fullpath_input --output=${input_basename}_moco.h5 --reg=$all_reg_obj --verbose 2
+
+# Finished
