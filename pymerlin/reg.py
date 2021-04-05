@@ -708,9 +708,95 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     return registration, reg_out, reg_par_name
 
 
-#################################################################
-# Legacy functions
-#################################################################
+def histogram_threshold_estimator(img, plot=False, nbins=200):
+    def smooth(x, window_len=10, window='hanning'):
+        """smooth the data using a window with requested size.
+
+        This method is based on the convolution of a scaled window with the signal.
+        The signal is prepared by introducing reflected copies of the signal 
+        (with the window size) in both ends so that transient parts are minimized
+        in the begining and end part of the output signal.
+
+        input:
+            x: the input signal 
+            window_len: the dimension of the smoothing window; should be an odd integer
+            window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+                flat window will produce a moving average smoothing.
+
+        output:
+            the smoothed signal
+
+        example:
+
+        t=linspace(-2,2,0.1)
+        x=sin(t)+randn(len(t))*0.1
+        y=smooth(x)
+
+        see also: 
+
+        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+        scipy.signal.lfilter
+
+        TODO: the window parameter could be the window itself if an array instead of a string
+        NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
+
+        -> Obtained from the scipy cookbook at: https://scipy-cookbook.readthedocs.io/items/SignalSmooth.html
+        Modified to use np instead of numpy
+        """
+
+        if x.ndim != 1:
+            raise(ValueError, "smooth only accepts 1 dimension arrays.")
+
+        if x.size < window_len:
+            raise(ValueError, "Input vector needs to be bigger than window size.")
+
+        if window_len < 3:
+            return x
+
+        s = np.r_[x[window_len-1:0:-1], x, x[-2:-window_len-1:-1]]
+        # print(len(s))
+        if window == 'flat':  # moving average
+            w = np.ones(window_len, 'd')
+        else:
+            w = eval('np.'+window+'(window_len)')
+
+        y = np.convolve(w/w.sum(), s, mode='valid')
+
+        return y[int(window_len/2-1):-int(window_len/2)]
+
+    y, x = np.histogram(abs(img.flatten()), bins=nbins)
+    x = (x[1:]+x[:-1])/2
+    y = smooth(y)
+
+    dx = (x[1:]+x[:-1])/2
+    dx2 = (dx[1:]+dx[:-1])/2
+    dy = np.diff(y)
+    dy2 = np.diff(smooth(dy))
+
+    # Peak of histogram
+    imax = np.argmax(y)
+
+    # Find max of second derivative after this peak
+    dy2max = np.argmax(dy2[imax:])
+    thr = int(dx2[imax+dy2max])
+
+    if plot:
+        plt.figure()
+        plt.plot(x, y/max(y), label='H')
+        plt.plot(dx, dy/np.max(dy), label='dH/dx')
+        ldy2 = plt.plot(dx2, dy2/max(abs(dy2)), label=r'$dH^2/dx^2$')
+        plt.axis([0, 1500, -1, 1])
+
+        thr=int(dx2[imax+dy2max])
+        plt.plot([dx2[imax+dy2max], dx2[imax+dy2max]], [-1, 1], '--', color=ldy2[0].get_color(), label='Thr=%d'%thr)
+        plt.legend()
+        plt.show()
+
+    return thr
+
+    #################################################################
+    # Legacy functions
+    #################################################################
 
 
 def itk_versor3Dreg_v2(fixed_image, moving_image, verbose=True):
