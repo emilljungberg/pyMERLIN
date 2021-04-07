@@ -20,9 +20,10 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from .dataIO import arg_check_h5, arg_check_nii
+from .dataIO import arg_check_h5, arg_check_nii, read_image_h5
 from .moco import moco_combined
-from .reg import ants_pyramid
+from .reg import ants_pyramid, histogram_threshold_estimator
+from .utils import gradient_entropy
 
 
 class PyMerlin_parser(object):
@@ -42,6 +43,8 @@ class PyMerlin_parser(object):
         moco        Run moco
         report      View report of data
         view        View h5 file
+        thr         Background threshold estimation
+        metric      Image metric analysis
     '''
                                          )
 
@@ -108,7 +111,7 @@ class PyMerlin_parser(object):
 
     def moco(self):
         parser = argparse.ArgumentParser(
-            description="Moco of complete series interleave", usage='pymerlin moco [<args]')
+            description="Moco of complete series interleave", usage='pymerlin moco [<args>]')
         parser.add_argument("--input", help="Input H5 k-space",
                             required=True, type=arg_check_h5)
         parser.add_argument("--output", help="Output correct H5 k-space",
@@ -121,18 +124,36 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_moco(args)
 
+    def thr(self):
+        parser = argparse.ArgumentParser(
+            description="Quick navigator background threshold estimator", usage='pymerlin thr [<args>]')
+        parser.add_argument("--input", help="Input H5 navigator",
+                            required=True, type=arg_check_h5)
+        parser.add_argument("--nbins", help="Number of bins",
+                            type=int, default=200)
+        parser.add_argument("--plot", help="Show plot", action='store_true')
+
+        args = parser.parse_args(sys.argv[2:])
+        main_thr(args)
+
     def report(self):
         parser = argparse.ArgumentParser(
             description="Moco report", usage='pymerlin report [<args>]')
-        parser.add_argument("--ref", help="Reg input. Initialize by setting input to 0", type=str,
-                            required=False)
-        parser.add_argument("--moco", help="Reg input. Initialize by setting input to 0", type=str,
-                            required=False)
         parser.add_argument("--reg", help="Combined registration object",
                             required=True)
+        parser.add_argument(
+            "--navtr", help="Navigator duration (s)", required=False, type=float)
 
         args = parser.parse_args(sys.argv[2:])
         main_report(args)
+
+    def metric(self):
+        parser = argparse.ArgumentParser(
+            description="Image metrics", usage="pymerlin metric [<args>]")
+        parser.add_argument("--input", help="Image input", required=True)
+
+        args = parser.parse_args(sys.argv[2:])
+        main_metric(args)
 
     def view(self):
         parser = argparse.ArgumentParser(
@@ -170,45 +191,14 @@ def main_reg(args):
                                       verbose=args.verbose)
 
 
+def main_thr(args):
+    img, spacing = read_image_h5(args.input)
+    thr = histogram_threshold_estimator(img, args.plot, args.nbins)
+    print(thr)
+
+
 def main_report(args):
-    nomoco = nib.load(args.ref).get_fdata()
-    moco = nib.load(args.moco).get_fdata()
     combreg = pickle.load(open(args.reg, 'rb'))
-
-    # Image comparison
-    plt.style.use('dark_background')
-    nx, ny, nz = np.shape(moco)
-
-    fig = plt.figure(figsize=(12, 8), facecolor='black')
-    fig.add_subplot(2, 3, 1)
-    plt.imshow(nomoco[int(nx/2), :, :], cmap='gray', vmin=0)
-    plt.axis('off')
-
-    fig.add_subplot(2, 3, 2)
-    plt.imshow(nomoco[:, int(ny/2), :], cmap='gray', vmin=0)
-    plt.axis('off')
-    plt.title('Before MOCO', size=20)
-
-    fig.add_subplot(2, 3, 3)
-    plt.imshow(nomoco[:, :, int(nz/2)], cmap='gray', vmin=0)
-    plt.axis('off')
-
-    fig.add_subplot(2, 3, 4)
-    plt.imshow(moco[int(nx/2), :, :], cmap='gray', vmin=0)
-    plt.axis('off')
-
-    fig.add_subplot(2, 3, 5)
-    plt.imshow(moco[:, int(ny/2), :], cmap='gray', vmin=0)
-    plt.axis('off')
-    plt.title('After MOCO', size=20)
-
-    fig.add_subplot(2, 3, 6)
-    plt.imshow(moco[:, :, int(nz/2)], cmap='gray', vmin=0)
-    plt.axis('off')
-
-    plt.tight_layout()
-    plt.savefig('moco_comparison.png', dpi=300)
-    plt.show()
 
     # Look at stats
     all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
@@ -222,7 +212,11 @@ def main_report(args):
 
     # Translations
     max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
-    d_axis = [0, len(combreg)-1, -max_d, max_d]
+    x = list(range(len(combreg)))
+    if args.navtr:
+        x *= args.navtr
+
+    d_axis = [0, max(x), -max_d, max_d]
 
     fig.add_subplot(3, 2, 1)
     plt.plot(all_reg['dx'], linewidth=3, color='C0')
@@ -242,7 +236,11 @@ def main_report(args):
     plt.axis(d_axis)
     plt.grid()
     plt.ylabel(r'$\Delta_z$ [mm]')
-    plt.xlabel('Interleave')
+
+    if args.navtr:
+        plt.xlabel('Time [s]')
+    else:
+        plt.xlabel('Interleave')
 
     # Translations
     max_r = np.ceil(np.rad2deg(
@@ -267,7 +265,10 @@ def main_report(args):
     plt.axis(r_axis)
     plt.grid()
     plt.ylabel(r'$\theta_z$ [deg]')
-    plt.xlabel('Interleave')
+    if args.navtr:
+        plt.xlabel('Time [s]')
+    else:
+        plt.xlabel('Interleave')
 
     plt.tight_layout()
     plt.savefig('regstats.png', dpi=300)
@@ -347,6 +348,14 @@ def main_view(args):
 
     plt.tight_layout()
     plt.show()
+
+
+def main_metric(args):
+    img = nib.load(args.input).get_fdata()
+    GE = gradient_entropy(img)
+
+    print("Calculating image metrics for %s" % args.input)
+    print("Gradient Entropy: {}".format(GE))
 
 
 def main():

@@ -46,3 +46,18 @@ def rotmat(rot_angles):
                   [-sy,   sx*cy,          cx*cy]])
 
     return R
+
+
+def gradient_entropy(img):
+    """
+    Calculates gradient entropy of ND image
+
+    From: McGee, K.P., Manduca, A., Felmlee, J.P., Riederer, S.J. and Ehman, R.L. (2000), 
+    Image metric‐based correction (Autocorrection) of motion effects: Analysis of image metrics. 
+    J. Magn. Reson. Imaging, 11: 174-181. 
+    https://doi.org/10.1002/(SICI)1522-2586(200002)11:2<174::AID-JMRI15>3.0.CO;2-3
+    """
+
+    h = img/np.sum(img**2)
+    GE = -np.sum(h*np.log2(h))
+    return GE
