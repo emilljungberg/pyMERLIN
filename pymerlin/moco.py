@@ -6,7 +6,7 @@ from .dataIO import *
 
 
 def calc_H(traj, D, spacing):
-    """Calculate phase correction matrix 
+    """Calculate phase correction matrix
 
     Args:
         traj (array): Trajectory to correct
@@ -93,34 +93,25 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
     Args:
         source_h5 (str): Source file to correct
-        dest_h5 (str): Output file, will first be copied from source
+        dest_h5 (str): Output file
         reg_list (list): List of registration dictionaries
     """
 
     # Load data
-    valid_dest_h5 = check_filename(dest_h5)
+    logging.info("Opening source file: %s" % source_h5)
+    f_source = h5py.File(source_h5, 'r')
 
-    logging.info("Copying source file")
-    copyfile(source_h5, valid_dest_h5)
-
-    logging.info("Opening %s" % valid_dest_h5)
-    f = h5py.File(valid_dest_h5, 'r+')
-
-    info = f['info'][:]
+    info = f_source['info'][:]
     spacing = info['voxel_size'][0]
     spokes_lo = info['spokes_lo'][0]
 
     n_interleaves = len(reg_list)
 
-    traj = f['traj']
-    traj_arr = traj[:]
-    traj_arr_py = pyreshape(traj_arr)
-    traj_arr_py_corr = traj_arr_py
+    traj = pyreshape(f_source['traj'][:])
+    traj_corr = np.copy(traj)
 
-    data = f['data/0000']
-    data_arr = data[:]
-    data_arr_py = pyreshape(data_arr)
-    data_arr_py_corr = data_arr_py
+    data = pyreshape(f_source['data/0000'][:])
+    data_corr = np.copy(data)
 
     # We don't correct any lowres spokes
     idx0 = 0
@@ -132,18 +123,35 @@ def moco_combined(source_h5, dest_h5, reg_list):
         idx0 = idx1         # Start where last interleave ended
         idx1 = idx0 + D_reg['spi']
 
-        traj_int = traj_arr_py[idx0:idx1, :, :]
-        data_int = data_arr_py[idx0:idx1, :, :]
+        traj_int = traj[idx0:idx1, :, :]
+        data_int = data[idx0:idx1, :, :]
 
-        traj_arr_py_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
+        traj_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
 
         H = calc_H(traj_int, D_reg, spacing)
-        for ircv in range(np.shape(data_arr_py)[-1]):
-            data_arr_py_corr[idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
+        for ircv in range(np.shape(data)[-1]):
+            data_corr[idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
 
-    logging.info("Writing data back to H5 file")
-    data[...] = pyreshape(data_arr_py_corr)
-    traj[...] = pyreshape(traj_arr_py_corr)
+    # Write data to destination file
+    valid_dest_h5 = check_filename(dest_h5)
+    logging.info("Opening destination file: %s" % valid_dest_h5)
+    f_dest = h5py.File(valid_dest_h5, 'w')
 
-    logging.info("Finished. Closing %s" % valid_dest_h5)
-    f.close()
+    logging.info("Writing info and meta data")
+    f_dest.create_dataset("info", data=info)
+    f_source.copy('meta', f_dest)
+
+    logging.info("Writing trajectory")
+    traj_out = pyreshape(traj_corr)
+    f_dest.create_dataset("traj", data=traj_out,
+                          chunks=np.shape(traj_out), compression='gzip')
+
+    logging.info("Writing k-space data")
+    data_out = pyreshape(data_corr)
+    data_grp = f_dest.create_group("data")
+    data_grp.create_dataset("0000", dtype='c8', data=data_out,
+                            chunks=np.shape(data_out), compression='gzip')
+
+    logging.info("Closing all files")
+    f_source.close()
+    f_dest.close()
