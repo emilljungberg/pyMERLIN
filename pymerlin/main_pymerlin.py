@@ -21,6 +21,7 @@ import nibabel as nib
 import numpy as np
 
 from .dataIO import arg_check_h5, arg_check_nii, read_image_h5
+from .plot import gif_animation
 from .moco import moco_combined
 from .reg import ants_pyramid, histogram_threshold_estimator
 from .utils import gradient_entropy
@@ -45,6 +46,7 @@ class PyMerlin_parser(object):
         view        View h5 file
         thr         Background threshold estimation
         metric      Image metric analysis
+        gif         Navigator and registration animation
     '''
                                          )
 
@@ -142,8 +144,13 @@ class PyMerlin_parser(object):
         parser.add_argument("--reg", help="Combined registration object",
                             required=True)
         parser.add_argument(
+            "--out", help="Output name of figure (.png)", required=False, type=str, default='regstats.png')
+        parser.add_argument(
             "--navtr", help="Navigator duration (s)", required=False, type=float)
-
+        parser.add_argument(
+            "--maxd", help="Max y-range translation", required=False, default=None)
+        parser.add_argument(
+            "--maxr", help="Max y-range rotation", required=False, default=None)
         args = parser.parse_args(sys.argv[2:])
         main_report(args)
 
@@ -163,6 +170,32 @@ class PyMerlin_parser(object):
 
         args = parser.parse_args(sys.argv[2:])
         main_view(args)
+
+    def gif(self):
+        parser = argparse.ArgumentParser(
+            description="Make animation from navigator and reg results", usage='pymerlin gif [<args>]')
+        parser.add_argument("--reg", help="Combined registration object",
+                            required=True)
+        parser.add_argument("--nav", help="Navigator folder", required=True)
+        parser.add_argument("--out", help="Output gif name",
+                            required=False, default="reg_animation.gif")
+        parser.add_argument("--axis", help="Slice axis (x,y,z)",
+                            required=False, default='z')
+        parser.add_argument(
+            "--slice", help="Slice to plot (def middle)", required=False, default=None)
+        parser.add_argument("--rot", help="Rotations to slice",
+                            required=False, default=0, type=int)
+        parser.add_argument(
+            "--navtr", help="Navigator duration (s)", required=False, type=float)
+        parser.add_argument("--t0", help="Time offset",
+                            required=False, default=0)
+        parser.add_argument(
+            "--maxd", help="Max y-range translation", required=False, default=None, type=float)
+        parser.add_argument(
+            "--maxr", help="Max y-range rotation", required=False, default=None, type=float)
+
+        args = parser.parse_args(sys.argv[2:])
+        main_gif(args)
 
     def get_args(self):
         return self.outargs
@@ -211,67 +244,61 @@ def main_report(args):
     plt.rcParams.update({'font.size': 16})
 
     # Translations
-    max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+    max_d = float(args.maxd)
+    max_r = float(args.maxr)
+    if not max_d:
+        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+    if not max_r:
+        max_r = np.ceil(np.rad2deg(
+            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
+
     x = list(range(len(combreg)))
     if args.navtr:
         x *= args.navtr
 
     d_axis = [0, max(x), -max_d, max_d]
+    r_axis = [0, max(x), -max_r, max_r]
 
-    fig.add_subplot(3, 2, 1)
-    plt.plot(all_reg['dx'], linewidth=3, color='C0')
-    plt.axis(d_axis)
-    plt.grid()
-    plt.title('Translation')
-    plt.ylabel(r'$\Delta_z$ [mm]')
+    for (i, ax) in enumerate(['x', 'y', 'z']):
+        fig.add_subplot(3, 2, i*2+1)
+        plt.plot(x, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
+        plt.axis(d_axis)
+        plt.grid()
+        plt.ylabel(r'$\Delta_%s$ [mm]' % ax)
 
-    fig.add_subplot(3, 2, 3)
-    plt.plot(all_reg['dy'], linewidth=3, color='C1')
-    plt.axis(d_axis)
-    plt.grid()
-    plt.ylabel(r'$\Delta_y$ [mm]')
+        if i == 0:
+            plt.title('Translation')
+        if i == 2:
+            if args.navtr:
+                plt.xlabel('Time [s]')
+            else:
+                plt.xlabel('Interleave')
 
-    fig.add_subplot(3, 2, 5)
-    plt.plot(all_reg['dz'], linewidth=3, color='C2')
-    plt.axis(d_axis)
-    plt.grid()
-    plt.ylabel(r'$\Delta_z$ [mm]')
+        fig.add_subplot(3, 2, i*2+2)
+        plt.plot(x, np.rad2deg(all_reg['r%s' % ax]),
+                 linewidth=3, color='C%d' % i)
+        plt.axis(r_axis)
+        plt.grid()
+        plt.ylabel(r'$\alpha_%s$ [deg]' % ax)
 
-    if args.navtr:
-        plt.xlabel('Time [s]')
-    else:
-        plt.xlabel('Interleave')
+        if i == 0:
+            plt.title('Rotation')
+        if i == 2:
+            if args.navtr:
+                plt.xlabel('Time [s]')
+            else:
+                plt.xlabel('Interleave')
 
-    # Translations
-    max_r = np.ceil(np.rad2deg(
-        np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
-    r_axis = [0, len(combreg)-1, -max_r, max_r]
-
-    fig.add_subplot(3, 2, 2)
-    plt.plot(np.rad2deg(all_reg['rx']), linewidth=3, color='C0')
-    plt.axis(r_axis)
-    plt.grid()
-    plt.title('Rotation [deg]')
-    plt.ylabel(r'$\theta_x$ [deg]')
-
-    fig.add_subplot(3, 2, 4)
-    plt.plot(np.rad2deg(all_reg['ry']), linewidth=3, color='C1')
-    plt.axis(r_axis)
-    plt.grid()
-    plt.ylabel(r'$\theta_y$ [deg]')
-
-    fig.add_subplot(3, 2, 6)
-    plt.plot(np.rad2deg(all_reg['rz']), linewidth=3, color='C2')
-    plt.axis(r_axis)
-    plt.grid()
-    plt.ylabel(r'$\theta_z$ [deg]')
-    if args.navtr:
-        plt.xlabel('Time [s]')
-    else:
-        plt.xlabel('Interleave')
+    # Check filename
+    out_name = args.out
+    fname, ext = os.path.splitext(out_name)
+    if ext != '.png':
+        print("Warning: output extension is not .png")
+        out_name = fname + '.png'
+        print("Setting output name to: {}".format(out_name))
 
     plt.tight_layout()
-    plt.savefig('regstats.png', dpi=300)
+    plt.savefig(out_name, dpi=300)
     plt.show()
 
 
@@ -356,6 +383,49 @@ def main_metric(args):
 
     print("Calculating image metrics for %s" % args.input)
     print("Gradient Entropy: {}".format(GE))
+
+
+def main_gif(args):
+
+    nav_dir = args.nav
+    files = os.listdir(nav_dir)
+    fbase = ''
+    string_match = '-nav0-'
+    for f in files:
+        if string_match in f:
+            fbase = f.split(string_match)
+
+    file_tmpl = os.path.join(nav_dir, fbase[0] + '-nav%d-' + fbase[1])
+    num_files = len(files)
+
+    ax = args.axis
+    nrot = int(args.rot)
+    slice_idx = args.slice
+    slice_ax = {'x': 0, 'y': 1, 'z': 2}
+
+    images = []
+    for i in range(num_files):
+        nav0 = h5py.File(file_tmpl % i)
+        img = nav0['data']['0000'][:]
+        nav0.close()
+
+        if not slice_idx:
+            img_size = img.shape
+            slice_idx = img_size[slice_ax[ax]]/2
+
+        images.append(
+            np.rot90(abs(np.take(img, int(slice_idx), axis=slice_ax[ax])), nrot))
+
+    # Check filename
+    out_name = args.out
+    fname, ext = os.path.splitext(out_name)
+    if ext != '.gif':
+        print("Warning: output extension is not .gif")
+        out_name = fname + '.gif'
+        print("Setting output name to: {}".format(out_name))
+
+    gif_animation(args.reg, images, out_name=out_name,
+                  tnav=args.navtr, t0=0, max_d=args.maxd, max_r=args.maxr)
 
 
 def main():

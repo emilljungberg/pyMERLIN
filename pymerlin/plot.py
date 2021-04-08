@@ -1,8 +1,13 @@
+import numpy as np
+import pickle
+import warnings
+
+import imageio
+from IPython.display import display, HTML
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 from matplotlib import animation, rc
-import warnings
-import numpy as np
-from IPython.display import display, HTML
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 
 def plot_3plane(I, title='', cmap='gray', vmin=None, vmax=None):
@@ -147,7 +152,124 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
     return I3
 
 
+def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, max_d=None, max_r=None):
+    """
+    Creates gif animation of registration results and navigator images.
+
+    Input:
+        - reg_out: pickle file with registration output
+        - images: List of navigator slices
+        - out_name: Output name
+        - tnav: Duration of each navigator in seconds for time axis (None)
+        - t0: Time offset due to WASPI and dda (0)
+        - max_d: Max displacement on y-axis (None)
+        - max_r: Max rotation on y-axis (None)
+    """
+
+    combreg = pickle.load(open(reg_out, 'rb'))
+    num_navigators = len(images)
+
+    if len(combreg) != num_navigators:
+        raise TypeError
+
+    all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
+    for k in all_reg.keys():
+        for i in range(len(combreg)):
+            all_reg[k].append(combreg[i][k])
+
+    plt.style.use('default')
+    plt.rcParams.update({'font.size': 14})
+
+    # Time axis
+    if tnav:
+        plot_xlabel = 'Time [s]'
+        t = np.arange(num_navigators)*tnav + t0
+    else:
+        plot_xlabel = 'Navigator'
+        t = np.arange(num_navigators)
+
+    # Translations
+    if not max_d:
+        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+    d_axis = [0, max(t), -max_d, max_d]
+
+    if not max_r:
+        max_r = np.ceil(np.rad2deg(
+            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
+    r_axis = [0, max(t), -max_r, max_r]
+
+    use_raster = True
+    raster_order = -10
+
+    def my_plot(img_idx):
+        fig = plt.figure(constrained_layout=True, figsize=(12, 4))
+        canvas = FigureCanvasAgg(fig)
+        spec = gridspec.GridSpec(ncols=3, nrows=3, figure=fig)
+        axes = {}
+
+        for (i, ax) in enumerate(['x', 'y', 'z']):
+            # Translation
+            axes['d%s' % ax] = fig.add_subplot(
+                spec[i, 0], rasterized=use_raster)
+            plt.plot(t, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
+            if i == 0:
+                plt.title('Translation')
+            plt.ylabel(r'$\Delta_%s$ [mm]' % ax)
+            plt.plot([t[img_idx], t[img_idx]], [-max_d, max_d], '--k')
+            plt.gca().set_rasterization_zorder(raster_order)
+            if i == 2:
+                plt.xlabel(plot_xlabel)
+            plt.grid()
+            plt.axis(d_axis)
+
+            # Rotation
+            axes['r%s' % ax] = fig.add_subplot(
+                spec[i, 1], rasterized=use_raster)
+            plt.plot(t, np.rad2deg(
+                all_reg['r%s' % ax]), linewidth=3, color='C%d' % i)
+            if i == 0:
+                plt.title('Rotation [deg]')
+            plt.ylabel(r'$\alpha_%s$ [deg]' % ax)
+            plt.plot([t[img_idx], t[img_idx]], [-max_r, max_r], '--k')
+            plt.gca().set_rasterization_zorder(raster_order)
+            if i == 2:
+                plt.xlabel(plot_xlabel)
+            plt.grid()
+            plt.axis(r_axis)
+
+        axes['img'] = fig.add_subplot(spec[0:3, 2], rasterized=use_raster)
+        plt.imshow(images[img_idx], cmap='gray')
+        plt.title('Navigator (%d/%d)' % (img_idx+1, num_navigators))
+        plt.axis('off')
+        plt.gca().set_rasterization_zorder(raster_order)
+
+        return (fig, canvas)
+
+    # Produce the frames
+    gif_frames = []
+    max_v = 0
+    for i in range(num_navigators):
+        print("Processing frame: %d/%d" % (i+1, num_navigators))
+        fig, canvas = my_plot(i)
+        canvas.draw()
+        buf = canvas.buffer_rgba()
+        X = np.asarray(buf)
+        if np.amax(X) > max_v:
+            max_v = np.amax(X)
+        gif_frames.append(X)
+        plt.close(fig)
+
+    # Scale data
+    uint8_frames = []
+    for i in range(num_navigators):
+        uint8_frames.append(np.array(gif_frames[i]/max_v*255, dtype=np.uint8))
+
+    print("Saving output to: {}".format(out_name))
+    imageio.mimsave(out_name, uint8_frames)
+
 #### Old ####
+
+
 def compare_timeseries(TS, title):
     fig = plt.figure(figsize=(14, 4))
     [nx, ny, nz, nt] = np.shape(TS)
