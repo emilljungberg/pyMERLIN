@@ -181,7 +181,7 @@ check_rm_folder $nav_folder $overwrite_files
 
 if [[ ! -d $nav_folder ]]; then
     mkdir $nav_folder
-    for ((i = 0; i < $(($num_interleaves - 1)); i++)); do
+    for ((i = 0; i < $num_interleaves; i++)); do
         int_file=${int_folder}/${input_basename}-int${i}.h5
 
         # Run ZINFANDEL
@@ -222,7 +222,7 @@ if [[ ! -d $reg_folder ]]; then
     # Initialise the combined reg param object
     pymerlin merge --input=0 --reg=${all_reg_obj} --spi=$nspokes --verbose=2
 
-    for ((i = 1; i < $(($num_interleaves - 1)); i++)); do
+    for ((i = 1; i < $num_interleaves; i++)); do
         echolog "Registering navigator $i -> $ref_nav_num"
         move_nav=${nav_folder}/${input_basename}-nav${i}-cg.h5
         regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p

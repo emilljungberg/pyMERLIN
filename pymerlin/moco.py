@@ -118,8 +118,8 @@ def moco_combined(source_h5, dest_h5, reg_list):
     idx1 = int(spokes_lo)
 
     logging.info("Correcting data and trajectories")
-    for (i, D_reg) in zip(range(1, n_interleaves), reg_list):
-        logging.info("Processing interleave %d" % i)
+    for (i, D_reg) in enumerate(reg_list):
+        logging.info("Processing interleave %d/%d" % (i+1, n_interleaves))
         idx0 = idx1         # Start where last interleave ended
         idx1 = idx0 + D_reg['spi']
 
