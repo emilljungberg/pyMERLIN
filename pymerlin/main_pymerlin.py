@@ -148,9 +148,9 @@ class PyMerlin_parser(object):
         parser.add_argument(
             "--navtr", help="Navigator duration (s)", required=False, type=float)
         parser.add_argument(
-            "--maxd", help="Max y-range translation", required=False, default=None)
+            "--maxd", help="Max y-range translation", required=False, default=0)
         parser.add_argument(
-            "--maxr", help="Max y-range rotation", required=False, default=None)
+            "--maxr", help="Max y-range rotation", required=False, default=0)
         args = parser.parse_args(sys.argv[2:])
         main_report(args)
 
@@ -381,8 +381,7 @@ def main_metric(args):
     img = nib.load(args.input).get_fdata()
     GE = gradient_entropy(img)
 
-    print("Calculating image metrics for %s" % args.input)
-    print("Gradient Entropy: {}".format(GE))
+    print(GE)
 
 
 def main_gif(args):
