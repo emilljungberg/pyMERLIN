@@ -88,6 +88,63 @@ def moco_interleave(source_h5, dest_h5, corr_pickle):
     f.close()
 
 
+def moco_single(source_h5, dest_h5, reg):
+    """Corrects a radial dataset from a pickle file
+
+    Args:
+        source_h5 (str): Source file to correct
+        dest_h5 (str): Output file
+        reg_list (list): Reg file
+    """
+
+    # Load data
+    logging.info("Opening source file: %s" % source_h5)
+    f_source = h5py.File(source_h5, 'r')
+
+    info = f_source['info'][:]
+    spacing = info['voxel_size'][0]
+    spokes_lo = info['spokes_lo'][0]
+    lo_scale = info['lo_scale'][0]
+
+    traj = f_source['traj'][:]
+    traj_corr = np.copy(traj)
+
+    data = f_source['volumes/0000'][:]
+    data_corr = np.zeros_like(data)
+
+    logging.info("Correcting data and trajectories")
+    traj_corr[:, :, :] = np.matmul(traj, reg['R'])
+
+    H_high = calc_H(traj[spokes_lo:, :, :], reg, spacing)
+    H_low = calc_H(traj[0:spokes_lo, :, :], reg, spacing/lo_scale)
+
+    for ircv in range(np.shape(data)[-1]):
+        data_corr[spokes_lo:, :, ircv] = data[spokes_lo:, :, ircv]*H_high
+        data_corr[0: spokes_lo, :,  ircv] = data[0:spokes_lo, :, ircv]*H_low
+
+    # Write data to destination file
+    valid_dest_h5 = check_filename(dest_h5)
+    logging.info("Opening destination file: %s" % valid_dest_h5)
+    f_dest = h5py.File(valid_dest_h5, 'w')
+
+    logging.info("Writing info and meta data")
+    f_dest.create_dataset("info", data=info)
+    f_source.copy('meta', f_dest)
+
+    logging.info("Writing trajectory")
+    f_dest.create_dataset("traj", data=traj_corr,
+                          chunks=np.shape(traj_corr), compression='gzip')
+
+    logging.info("Writing k-space data")
+    data_grp = f_dest.create_group("volumes")
+    data_grp.create_dataset("0000", dtype='c8', data=data_corr,
+                            chunks=np.shape(data_corr), compression='gzip')
+
+    logging.info("Closing all files")
+    f_source.close()
+    f_dest.close()
+
+
 def moco_combined(source_h5, dest_h5, reg_list):
     """Corrects a combined radial dataset from list of pickle files
 
@@ -110,7 +167,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
     traj = pyreshape(f_source['traj'][:])
     traj_corr = np.copy(traj)
 
-    data = pyreshape(f_source['data/0000'][:])
+    data = pyreshape(f_source['volumes/0000'][:])
     data_corr = np.copy(data)
 
     # We don't correct any lowres spokes
@@ -148,7 +205,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
     logging.info("Writing k-space data")
     data_out = pyreshape(data_corr)
-    data_grp = f_dest.create_group("data")
+    data_grp = f_dest.create_group("volumes")
     data_grp.create_dataset("0000", dtype='c8', data=data_out,
                             chunks=np.shape(data_out), compression='gzip')
 
