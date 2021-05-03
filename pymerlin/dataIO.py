@@ -203,7 +203,7 @@ def read_image_h5(h5_file):
 
     f = h5py.File(h5_file, 'r')
 
-    data = f['data/0000'][:]
+    data = f['volumes/0000'][:]
     spacing = f['info'][0][1]
 
     f.close()
@@ -230,7 +230,7 @@ def read_radial_h5(h5_file):
         traj_flat, [traj.shape[2], traj.shape[1], traj.shape[0]])
 
     # Reshape data
-    data = f['data/0000']
+    data = f['volumes/0000']
     data_rs = np.reshape(np.reshape(data, (1, np.prod(data.shape))), [
                          data.shape[2], data.shape[1], data.shape[0]])
 
