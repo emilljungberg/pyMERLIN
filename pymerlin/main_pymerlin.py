@@ -22,9 +22,10 @@ import numpy as np
 
 from .dataIO import arg_check_h5, arg_check_nii, read_image_h5
 from .plot import gif_animation
-from .moco import moco_combined
+from .moco import moco_combined, moco_single
 from .reg import ants_pyramid, histogram_threshold_estimator
 from .utils import gradient_entropy
+from .iq import ssim
 
 
 class PyMerlin_parser(object):
@@ -47,6 +48,7 @@ class PyMerlin_parser(object):
         thr         Background threshold estimation
         metric      Image metric analysis
         gif         Navigator and registration animation
+        ssim        Calculate Structural Similarity Index Measure
     '''
                                          )
 
@@ -197,6 +199,23 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_gif(args)
 
+    def ssim(self):
+        parser = argparse.ArgumentParser(
+            description="Calculate Structural Similarity Index Measure (SSIM)", usage="pymerlin ssim [<args>]")
+        parser.add_argument('img1', type=str,
+                            help='Reference image')
+        parser.add_argument('img2', type=str,
+                            help='Comparison image')
+        parser.add_argument('--kw', required=False, default=11,
+                            type=int, help='Kernel width')
+        parser.add_argument('--sigma', required=False, default=0.0,
+                            type=float, help='Sigma for Gaussian kernel')
+        parser.add_argument('--out', required=False,
+                            default='ssim.nii.gz', type=str, help='Output filename')
+
+        args = parser.parse_args(sys.argv[2:])
+        main_ssim(args)
+
     def get_args(self):
         return self.outargs
 
@@ -308,7 +327,11 @@ def main_moco(args):
         format="[%(asctime)s] %(levelname)s: %(message)s", level=log_level[args.verbose], datefmt="%I:%M:%S")
 
     reg_list = pickle.load(open(args.reg, 'rb'))
-    moco_combined(args.input, args.output, reg_list)
+
+    if isinstance(reg_list, dict):
+        moco_single(args.input, args.output, reg_list)
+    else:
+        moco_combined(args.input, args.output, reg_list)
 
 
 def main_merge(args):
@@ -425,6 +448,19 @@ def main_gif(args):
 
     gif_animation(args.reg, images, out_name=out_name,
                   tnav=args.navtr, t0=0, max_d=args.maxd, max_r=args.maxr)
+
+
+def main_ssim(args):
+    nii1 = nib.load(args.img1)
+    image1 = nii1.get_fdata()[..., 0]
+    image2 = nib.load(args.img2).get_fdata()[..., 0]
+
+    mssim, S = ssim(image1, image2, kw=args.kw, sigma=args.sigma)
+
+    ssim_nii = nib.Nifti1Image(S, nii1.affine)
+    nib.save(ssim_nii, args.out)
+    print('MSSIM: {}'.format(mssim))
+    print('Saving SSIM to: {}'.format(args.out))
 
 
 def main():
