@@ -191,10 +191,11 @@ if [[ ! -d $nav_folder ]]; then
         fi
         riesling $zinfandel_cmd -o ${int_folder}/${input_basename}-int${i} $int_file
         zin_int_file=${int_folder}/${input_basename}-int${i}-zinfandel.h5
+        rm $int_file
 
         out_file=${nav_folder}/${input_basename}-nav${i}
         echolog "Reconstructing $int_file"
-        riesling cg --sdc --magnitude --oft=h5 --fov=$fov --max_its=$cg_its --out=$out_file $riesling_verbose $zin_int_file
+        riesling cg --sdc=pipe --magnitude --oft=h5 --fov=$fov --max_its=$cg_its --out=$out_file $riesling_verbose $zin_int_file
     done
 else
     echolog "$nav_folder folder already exists, skipping this step"
