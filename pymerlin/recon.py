@@ -29,7 +29,7 @@ def piccini_phyllotaxis(n, nint):
     if n % 2:
         raise ValueError('Number of spokes must be even')
 
-    if nint not in fibbonaciNum:
+    if nint not in fibonacciNum:
         raise ValueError('Number of interleaves has to be a Fibonacci number')
 
     if n % nint:
@@ -90,7 +90,7 @@ def swinbank_phyllotaxis(n, nint):
     if n % 2:
         raise ValueError('Number of spokes must be even')
 
-    if nint not in fibbonaciNum:
+    if nint not in fibonacciNum:
         raise ValueError('Number of interleaves has to be a Fibonacci number')
 
     if n % nint:
