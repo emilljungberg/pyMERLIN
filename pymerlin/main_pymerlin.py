@@ -20,12 +20,12 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from .dataIO import arg_check_h5, arg_check_nii, read_image_h5
-from .plot import gif_animation
+from .dataIO import arg_check_h5, arg_check_nii, read_image_h5, parse_fname, make_3D
+from .plot import gif_animation, report_plot
 from .moco import moco_combined, moco_single
 from .reg import ants_pyramid, histogram_threshold_estimator
 from .utils import gradient_entropy
-from .iq import ssim
+from .iq import ssim, aes, nrmse
 
 
 class PyMerlin_parser(object):
@@ -49,6 +49,8 @@ class PyMerlin_parser(object):
         metric      Image metric analysis
         gif         Navigator and registration animation
         ssim        Calculate Structural Similarity Index Measure
+        aes         Calculate Average Edge Strength
+        nrmse       Calculate Normalised Root Mean Squared Error
     '''
                                          )
 
@@ -101,7 +103,7 @@ class PyMerlin_parser(object):
     def merge(self):
         parser = argparse.ArgumentParser(description='Append to registration or initialise series',
                                          usage='pymerlin merge [<args>]')
-        parser.add_argument("--input", help="Reg input. Initialize by setting input to 0", type=str,
+        parser.add_argument("--input", nargs='+', help="Reg input. Initialize by setting input to 0",
                             required=False)
         parser.add_argument("--reg", help="Output reg object to save or append to",
                             required=True)
@@ -153,6 +155,8 @@ class PyMerlin_parser(object):
             "--maxd", help="Max y-range translation", required=False, default=0)
         parser.add_argument(
             "--maxr", help="Max y-range rotation", required=False, default=0)
+        parser.add_argument("--bw", action='store_true', default=False,
+                            required=False, help="Plot in black and white")
         args = parser.parse_args(sys.argv[2:])
         main_report(args)
 
@@ -216,6 +220,36 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_ssim(args)
 
+    def aes(self):
+        parser = argparse.ArgumentParser(
+            description="Calculate the Average Edge Strength (AES)", usage="pymerlin aes [<args>]")
+        parser.add_argument('img', type=str, help='Input image')
+        parser.add_argument('--mask', type=str,
+                            help='Brain mask', required=False, default=None)
+        parser.add_argument('--canny', type=str,
+                            help='Canny edge mask', required=False, default=None)
+        parser.add_argument(
+            '--sigma', type=str, help='Canny edge filter sigma', required=False, default=2)
+        parser.add_argument('--out', type=str,
+                            help='Output folder', required=False, default='.')
+
+        args = parser.parse_args(sys.argv[2:])
+        main_aes(args)
+
+    def nrmse(self):
+        parser = argparse.ArgumentParser(
+            description="Calculate the Normalised Root Mean Squared Error (NRMSE)", usage="pymerlin nrmse [<args>]")
+        parser.add_argument("--ref", type=str,
+                            help="Reference image", required=True)
+        parser.add_argument("--comp", type=str,
+                            help="Comparison image", required=True)
+        parser.add_argument("--mask", type=str, help="Mask", required=True)
+        parser.add_argument("--out", type=str,
+                            help="Output folder", required=False, default='.')
+
+        args = parser.parse_args(sys.argv[2:])
+        main_nrmse(args)
+
     def get_args(self):
         return self.outargs
 
@@ -252,61 +286,7 @@ def main_thr(args):
 def main_report(args):
     combreg = pickle.load(open(args.reg, 'rb'))
 
-    # Look at stats
-    all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
-    for k in all_reg.keys():
-        for i in range(len(combreg)):
-            all_reg[k].append(combreg[i][k])
-
-    plt.style.use('default')
-    fig = plt.figure(figsize=(12, 6))
-    plt.rcParams.update({'font.size': 16})
-
-    # Translations
-    max_d = float(args.maxd)
-    max_r = float(args.maxr)
-    if not max_d:
-        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
-    if not max_r:
-        max_r = np.ceil(np.rad2deg(
-            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
-
-    x = list(range(len(combreg)))
-    if args.navtr:
-        x *= args.navtr
-
-    d_axis = [0, max(x), -max_d, max_d]
-    r_axis = [0, max(x), -max_r, max_r]
-
-    for (i, ax) in enumerate(['x', 'y', 'z']):
-        fig.add_subplot(3, 2, i*2+1)
-        plt.plot(x, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
-        plt.axis(d_axis)
-        plt.grid()
-        plt.ylabel(r'$\Delta_%s$ [mm]' % ax)
-
-        if i == 0:
-            plt.title('Translation')
-        if i == 2:
-            if args.navtr:
-                plt.xlabel('Time [s]')
-            else:
-                plt.xlabel('Interleave')
-
-        fig.add_subplot(3, 2, i*2+2)
-        plt.plot(x, np.rad2deg(all_reg['r%s' % ax]),
-                 linewidth=3, color='C%d' % i)
-        plt.axis(r_axis)
-        plt.grid()
-        plt.ylabel(r'$\alpha_%s$ [deg]' % ax)
-
-        if i == 0:
-            plt.title('Rotation')
-        if i == 2:
-            if args.navtr:
-                plt.xlabel('Time [s]')
-            else:
-                plt.xlabel('Interleave')
+    report_plot(combreg, args.maxd, args.maxr, args.navtr, args.bw)
 
     # Check filename
     out_name = args.out
@@ -316,7 +296,6 @@ def main_report(args):
         out_name = fname + '.png'
         print("Setting output name to: {}".format(out_name))
 
-    plt.tight_layout()
     plt.savefig(out_name, dpi=300)
     plt.show()
 
@@ -339,7 +318,7 @@ def main_merge(args):
     logging.basicConfig(
         format="[%(asctime)s] %(levelname)s: %(message)s", level=log_level[args.verbose], datefmt="%I:%M:%S")
 
-    if args.input == '0':
+    if not args.input:
         logging.info("Initializing new reg structure")
 
         if os.path.exists(args.reg):
@@ -361,16 +340,19 @@ def main_merge(args):
         logging.info("New reg structure saved to {}".format(args.reg))
 
     else:
-        logging.info("Opening {}".format(args.input))
-        in_dict = pickle.load(open(args.input, 'rb'))
-        in_dict['spi'] = args.spi
-
         logging.info("Opening {}".format(args.reg))
         dlist = pickle.load(open(args.reg, 'rb'))
-        dlist.append(in_dict)
-        nreg = len(dlist)
 
-        logging.info("Adding as reg object number {}".format(nreg))
+        for input in args.input:
+            logging.info("Opening {}".format(input))
+            in_dict = pickle.load(open(input, 'rb'))
+            in_dict['spi'] = args.spi
+            dlist.append(in_dict)
+
+            nreg = len(dlist)
+
+            logging.info("Adding as reg object number {}".format(nreg))
+
         logging.info("Writing combined reg object back to {}".format(args.reg))
         pickle.dump(dlist, open(args.reg, 'wb'))
 
@@ -427,9 +409,7 @@ def main_gif(args):
 
     images = []
     for i in range(num_files):
-        nav0 = h5py.File(file_tmpl % i)
-        img = nav0['data']['0000'][:]
-        nav0.close()
+        img, spacing = read_image_h5(file_tmpl % i, vol=0)
 
         if not slice_idx:
             img_size = img.shape
@@ -452,8 +432,13 @@ def main_gif(args):
 
 def main_ssim(args):
     nii1 = nib.load(args.img1)
-    image1 = nii1.get_fdata()[..., 0]
-    image2 = nib.load(args.img2).get_fdata()[..., 0]
+    image1 = nii1.get_fdata()
+    image2 = nib.load(args.img2).get_fdata()
+
+    if len(image1.shape) > 3:
+        image1 = image1[..., 0]
+    if len(image2.shape) > 3:
+        image2 = image2[..., 0]
 
     mssim, S = ssim(image1, image2, kw=args.kw, sigma=args.sigma)
 
@@ -461,6 +446,68 @@ def main_ssim(args):
     nib.save(ssim_nii, args.out)
     print('MSSIM: {}'.format(mssim))
     print('Saving SSIM to: {}'.format(args.out))
+
+
+def main_aes(args):
+
+    nii = nib.load(args.img)
+
+    img = make_3D(nib.load(args.img).get_fdata())
+    mask = make_3D(nib.load(args.mask).get_fdata())
+
+    if args.canny:
+        canny = make_3D(nib.load(args.canny).get_fdata())
+    else:
+        canny = None
+
+    img_aes, img_edges, canny_edges = aes(
+        img, mask=mask, canny_edges=canny, canny_sigma=args.sigma)
+
+    bname = parse_fname(args.img)
+
+    edges_nii = nib.Nifti1Image(img_edges, nii.affine)
+    nib.save(edges_nii, "{}/{}_edges.nii.gz".format(args.out, bname))
+
+    if not args.canny:
+        canny_nii = nib.Nifti1Image(canny_edges, nii.affine)
+        nib.save(canny_nii, "{}/{}_canny.nii.gz".format(args.out, bname))
+
+    print("Average edge strength")
+    print("Image: {}".format(args.img))
+    if args.canny:
+        print("Canny edges: {}".format(args.canny))
+    else:
+        print("Canny edges calculated from image")
+
+    print("AES:{}".format(img_aes))
+
+
+def main_nrmse(args):
+
+    ref_nii = nib.load(args.ref)
+
+    ref_img = make_3D(ref_nii.get_fdata())
+    comp_img = make_3D(nib.load(args.comp).get_fdata())
+    mask = make_3D(nib.load(args.mask).get_fdata())
+
+    # Normalise images to avoid difference in global scaling
+    ref_img /= np.quantile(ref_img[mask == 1], 0.99)
+    comp_img /= np.quantile(comp_img[mask == 1], 0.99)
+
+    img_nrmse = nrmse(ref_img, comp_img, mask)
+
+    print("Normalised Root Mean Squared Error (NRMSE)")
+    print("Ref Image: {}".format(args.ref))
+    print("Comparison Image: {}".format(args.comp))
+    print("Mask: {}".format(args.mask))
+    print("NRMSE: {}".format(img_nrmse))
+
+    diff_img = ref_img - comp_img
+
+    diff_nii = nib.Nifti1Image(diff_img, ref_nii.affine)
+
+    nib.save(diff_nii, "{}/{}_diff.nii.gz".format(args.out,
+             parse_fname(args.comp)))
 
 
 def main():

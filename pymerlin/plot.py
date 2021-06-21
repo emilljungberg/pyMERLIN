@@ -1,3 +1,4 @@
+from pymerlin.utils import parse_combreg
 import numpy as np
 import pickle
 import warnings
@@ -266,6 +267,64 @@ def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, ma
 
     print("Saving output to: {}".format(out_name))
     imageio.mimsave(out_name, uint8_frames)
+
+
+def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
+
+    # Summarise statistics
+    all_reg = parse_combreg(combreg)
+
+    if bw:
+        plt.style.use('grayscale')
+    else:
+        plt.style.use('default')
+
+    fig = plt.figure(figsize=(12, 4), facecolor='w')
+    plt.rcParams.update({'font.size': 16})
+
+    # Axis limits
+    max_d = float(maxd)
+    max_r = float(maxr)
+    if not max_d:
+        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+    if not max_r:
+        max_r = np.ceil(np.rad2deg(
+            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
+
+    x = list(range(len(combreg)))
+    if navtr:
+        x *= navtr
+
+    d_ax = fig.add_subplot(1, 2, 1)
+    rot_ax = fig.add_subplot(1, 2, 2)
+
+    for (i, ax) in enumerate(['x', 'y', 'z']):
+        d_ax.plot(x, all_reg['d%s' % ax],
+                  linewidth=3, label=ax,)
+
+        rot_ax.plot(x, np.rad2deg(all_reg['r%s' % ax]),
+                    linewidth=3, label=ax)
+
+    d_ax.axis([0, max(x), -max_d, max_d])
+    d_ax.set_ylabel(r'$\Delta$ [mm]')
+    d_ax.grid()
+    d_ax.set_title('Translation')
+    d_ax.legend()
+
+    rot_ax.axis([0, max(x), -max_r, max_r])
+    rot_ax.grid()
+    rot_ax.set_ylabel(r'$\alpha$ [deg]')
+    rot_ax.set_title('Rotation')
+    rot_ax.legend()
+
+    if navtr:
+        rot_ax.set_xlabel('Time [s]')
+        d_ax.set_xlabel('Time [s]')
+    else:
+        rot_ax.set_xlabel('Interleave')
+        d_ax.set_xlabel('Interleave')
+
+    plt.tight_layout()
 
 #### Old ####
 
