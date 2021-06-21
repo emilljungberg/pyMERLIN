@@ -109,7 +109,7 @@ def moco_single(source_h5, dest_h5, reg):
     traj = f_source['traj'][:]
     traj_corr = np.copy(traj)
 
-    data = f_source['volumes/0000'][:]
+    data = f_source['noncartesian'][0, ...]
     data_corr = np.zeros_like(data)
 
     logging.info("Correcting data and trajectories")
@@ -132,13 +132,12 @@ def moco_single(source_h5, dest_h5, reg):
     f_source.copy('meta', f_dest)
 
     logging.info("Writing trajectory")
-    f_dest.create_dataset("traj", data=traj_corr,
+    f_dest.create_dataset("trajectory", data=traj_corr,
                           chunks=np.shape(traj_corr), compression='gzip')
 
     logging.info("Writing k-space data")
-    data_grp = f_dest.create_group("volumes")
-    data_grp.create_dataset("0000", dtype='c8', data=data_corr,
-                            chunks=np.shape(data_corr), compression='gzip')
+    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr[np.newaxis, ...],
+                          chunks=np.shape(data_corr), compression='gzip')
 
     logging.info("Closing all files")
     f_source.close()
@@ -164,10 +163,10 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
     n_interleaves = len(reg_list)
 
-    traj = pyreshape(f_source['traj'][:])
+    traj = f_source['trajectory'][:]
     traj_corr = np.copy(traj)
 
-    data = pyreshape(f_source['volumes/0000'][:])
+    data = f_source['noncartesian'][0, :, :, :]
     data_corr = np.copy(data)
 
     # We don't correct any lowres spokes
@@ -199,15 +198,12 @@ def moco_combined(source_h5, dest_h5, reg_list):
     f_source.copy('meta', f_dest)
 
     logging.info("Writing trajectory")
-    traj_out = pyreshape(traj_corr)
-    f_dest.create_dataset("traj", data=traj_out,
-                          chunks=np.shape(traj_out), compression='gzip')
+    f_dest.create_dataset("trajectory", data=traj_corr,
+                          chunks=np.shape(traj_corr), compression='gzip')
 
     logging.info("Writing k-space data")
-    data_out = pyreshape(data_corr)
-    data_grp = f_dest.create_group("volumes")
-    data_grp.create_dataset("0000", dtype='c8', data=data_out,
-                            chunks=np.shape(data_out), compression='gzip')
+    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr[np.newaxis, ...],
+                          chunks=np.shape(data_corr), compression='gzip')
 
     logging.info("Closing all files")
     f_source.close()
