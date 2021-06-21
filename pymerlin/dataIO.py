@@ -16,6 +16,16 @@ import numpy as np
 import xmltodict
 
 
+def parse_fname(fname):
+    bname, ext = os.path.splitext(os.path.basename(fname))
+    if ext.lower() == '.nii':
+        return fname
+    elif ext.lower() == '.gz':
+        bname2, ext2 = os.path.splitext(bname)
+        if ext2 == '.nii':
+            return bname2
+
+
 def arg_check_h5(fname):
     """Check h5 file ending
 
@@ -191,7 +201,7 @@ def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=N
     return img_out
 
 
-def read_image_h5(h5_file):
+def read_image_h5(h5_file, vol=0):
     """Read image h5 file
 
     Args:
@@ -203,7 +213,7 @@ def read_image_h5(h5_file):
 
     f = h5py.File(h5_file, 'r')
 
-    data = f['volumes/0000'][:]
+    data = f['image'][vol, :, :, :]
     spacing = f['info'][0][1]
 
     f.close()
@@ -224,17 +234,12 @@ def read_radial_h5(h5_file):
     f = h5py.File(h5_file, 'r')
 
     # Reshape trajectory
-    traj = f['traj']
-    traj_flat = np.reshape(traj, (1, np.prod(traj.shape)))
-    traj_rs = np.reshape(
-        traj_flat, [traj.shape[2], traj.shape[1], traj.shape[0]])
+    traj = f['trajectory']
 
     # Reshape data
-    data = f['volumes/0000']
-    data_rs = np.reshape(np.reshape(data, (1, np.prod(data.shape))), [
-                         data.shape[2], data.shape[1], data.shape[0]])
+    data = f['noncartesian']
 
-    return data_rs, traj_rs
+    return data, traj
 
 
 def modify_h5(source_h5, dest_h5, data, traj):
@@ -276,3 +281,11 @@ def modify_h5(source_h5, dest_h5, data, traj):
     f.close()
 
     return dest_h5
+
+
+def make_3D(img):
+
+    if len(img.shape) > 3:
+        return img[:, :, :, 0]
+
+    return img
