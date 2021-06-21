@@ -61,3 +61,12 @@ def gradient_entropy(img):
     h = img/np.sum(img**2)
     GE = -np.sum(h*np.log2(h))
     return GE
+
+
+def parse_combreg(combreg):
+    all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
+    for k in all_reg.keys():
+        for i in range(len(combreg)):
+            all_reg[k].append(combreg[i][k])
+
+    return all_reg
