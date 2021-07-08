@@ -22,9 +22,9 @@ import numpy as np
 
 from .dataIO import arg_check_h5, arg_check_nii, read_image_h5, parse_fname, make_3D
 from .plot import gif_animation, report_plot
-from .moco import moco_combined, moco_single
+from .moco import moco_combined, moco_single, moco_sw
 from .reg import ants_pyramid, histogram_threshold_estimator
-from .utils import gradient_entropy
+from .utils import gradient_entropy, make_tukey
 from .iq import ssim, aes, nrmse
 
 
@@ -124,6 +124,9 @@ class PyMerlin_parser(object):
                             required=True, type=arg_check_h5)
         parser.add_argument(
             "--reg", help="All registration parameters in combined file", required=True, type=str, default=None)
+        parser.add_argument(
+            "--nseg", help="Segments per interleave for sliding window", required=False, type=int, default=None
+        )
         parser.add_argument(
             "--verbose", help="Log level (0,1,2)", default=2, type=int)
 
@@ -250,6 +253,20 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_nrmse(args)
 
+    def tukey(self):
+        parser = argparse.ArgumentParser(
+            description="Applies a tukey filter to radial k-space data",
+            usage="pymerlin tukey [<args>]")
+        parser.add_argument("--input", type=str,
+                            help="Input data", required=True)
+        parser.add_argument("--output", type=str,
+                            help="Output data", required=True)
+        parser.add_argument("--alpha", required=False,
+                            type=float, default=0.5, help="Filter width")
+
+        args = parser.parse_args(sys.argv[2:])
+        main_tukey(args)
+
     def get_args(self):
         return self.outargs
 
@@ -309,6 +326,8 @@ def main_moco(args):
 
     if isinstance(reg_list, dict):
         moco_single(args.input, args.output, reg_list)
+    if args.nseg:
+        moco_sw(args.input, args.output, reg_list, args.nseg)
     else:
         moco_combined(args.input, args.output, reg_list)
 
@@ -508,6 +527,31 @@ def main_nrmse(args):
 
     nib.save(diff_nii, "{}/{}_diff.nii.gz".format(args.out,
              parse_fname(args.comp)))
+
+
+def main_tukey(args):
+    print("Applying tukey filter to {}".format(args.input))
+    h5 = h5py.File(args.input, 'r')
+    ks = h5['noncartesian'][0, ...]
+    info = h5['info'][:]
+    traj = h5['trajectory'][:]
+    h5.close()
+
+    nspokes, npoints, ndim = traj.shape
+    filt = make_tukey(nspokes, a=args.alpha)
+    ks_filt = np.transpose(np.transpose(ks, [1, 2, 0])*filt, [2, 0, 1])
+
+    f_dest = h5py.File(args.output, 'w')
+    f_dest.create_dataset("info", data=info)
+
+    f_dest.create_dataset("trajectory", data=traj,
+                          chunks=np.shape(traj), compression='gzip')
+
+    f_dest.create_dataset("noncartesian", dtype='c8', data=ks_filt[np.newaxis, ...],
+                          chunks=np.shape(ks_filt[np.newaxis, ...]), compression='gzip')
+
+    f_dest.close()
+    print("Saved data to {}".format(args.output))
 
 
 def main():
