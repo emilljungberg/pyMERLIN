@@ -68,6 +68,7 @@ verbose=0
 riesling_verbose=""
 gap=
 spoke_step=
+tukey=
 ref_nav_num=0
 batch_itk=1
 batch_riesling=1
@@ -121,6 +122,10 @@ while [ "$1" != "" ]; do
         shift
         spoke_step=$1
         ;;
+    --tukey)
+        shift
+        tukey_a=$1
+        ;;
     --batchitk)
         shift
         batch_itk=$1
@@ -173,7 +178,7 @@ if [[ $verbose -eq 1 ]]; then
     riesling_verbose="-v"
 fi
 
-if [ $threads_itk]; then
+if [ $threads_itk ]; then
     export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS $threads_itk
 fi
 
@@ -217,6 +222,16 @@ fi
 num_interleaves=$(ls ${int_folder} | wc -l)
 echolog "Generated ${num_interleaves} interleaves"
 
+if [ $tukey_a ]; then
+    echolog "Applying tukey filter"
+    for ((i = 0; i < $num_interleaves; i++)); do
+        tukey_name=${int_folder}/${input_basename}-int${i}
+        pymerlin tukey --input ${tukey_name}.h5 --output ${tukey_name}_tukey.h5 --alpha $tukey_a
+        rm ${tukey_name}.h5
+        mv ${tukey_name}_tukey.h5 ${tukey_name}.h5
+    done
+fi
+
 # Step 2 - Reconstruct navigators
 echolog "Step 2 - Reconstructing navigators"
 nav_folder="navigators"
@@ -225,7 +240,10 @@ check_rm_folder $nav_folder $overwrite_files
 if [[ ! -d $nav_folder ]]; then
     mkdir $nav_folder
 
-    N=$batch_itk
+    # Make SENSE maps
+    riesling sense ${input_basename}-waspi.h5 --sdc=pipe --fov=256 --lambda=1000
+
+    N=$batch_riesling
     k=0
     for ((i = 0; i < $num_interleaves; i++)); do
         ((k = k % N))
@@ -234,7 +252,7 @@ if [[ ! -d $nav_folder ]]; then
         out_file=${nav_folder}/${input_basename}-nav${i}
 
         echolog "Reconstructing $int_file"
-        options="--sense=${input_basename}-waspi.h5 --kb --sdc=pipe --magnitude --oft=h5 --fov=$fov 
+        options="--sense=${input_basename}-waspi-sense.h5 --kb --sdc=pipe --mag --fov=$fov 
                 --max_its=$cg_its --out=$out_file"
         if [ $threads_riesling ]; then
             options="${options} --nthreads=${threads_riesling}"
@@ -296,10 +314,10 @@ done
 pymerlin merge --reg=${all_reg_obj} --spi=$nspokes --verbose=2
 pymerlin merge --reg ${all_reg_obj} --input $reglist --spi $nspokes --verbose 2
 
-exit
+# exit
 
 # Step 4 - Perform motion correction
 echolog "[Step 4] Performing motion correction"
-pymerlin moco --input=$fullpath_input --output=${input_basename}_moco.h5 --reg=$all_reg_obj --verbose 2
+pymerlin moco --input=$fullpath_input --output=${input_basename}_moco.h5 --reg=$all_reg_obj --nseg $((nspokes / spoke_step)) --verbose 2
 
 # Finished
