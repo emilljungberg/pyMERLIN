@@ -20,6 +20,7 @@ usage() {
     --fov   | MOCO field of view (240)
     --ow    | Overwrite files without asking
     --gap   | Set gap for Zinfandel
+    --ref   | Reference navigator
     -v      | --verbose (0)
     -h      | --help        
 EOF
@@ -61,6 +62,7 @@ overwrite_files=0
 verbose=0
 riesling_verbose=""
 gap=
+ref_nav_num=0
 
 # Parse commandline argument
 while [ "$1" != "" ]; do
@@ -100,6 +102,10 @@ while [ "$1" != "" ]; do
     --gap)
         shift
         gap=$1
+        ;;
+    --ref)
+        shift
+        ref_nav_num=$1
         ;;
     -v | --verbose)
         shift
@@ -206,7 +212,6 @@ echolog "Step 2 - Done!"
 echolog "[Step 3] Registering navigators"
 reg_folder="registrations"
 check_rm_folder $reg_folder $overwrite_files
-ref_nav_num=0
 all_reg_obj=all_reg_param.p
 
 if [[ ! -d $reg_folder ]]; then
@@ -227,9 +232,10 @@ if [[ ! -d $reg_folder ]]; then
         echolog "Registering navigator $i -> $ref_nav_num"
         move_nav=${nav_folder}/${input_basename}-nav${i}-cg.h5
         regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p
+        logname=${reg_folder}/log_nav${ref_name}_2_nav${i}.p
 
         # Run registration and merge registration objects
-        pymerlin reg --fixed=$ref_nav --moving=$move_nav --thr=$nav_thr --verbose=2 --reg=$regname
+        pymerlin reg --fixed=$ref_nav --moving=$move_nav --thr=$nav_thr --verbose=2 --reg=$regname --log=$logname
         pymerlin merge --reg=${all_reg_obj} --input=$regname --spi=$nspokes --verbose=2
     done
     echolog "Step 3 - Done!"
