@@ -70,3 +70,12 @@ def parse_combreg(combreg):
             all_reg[k].append(combreg[i][k])
 
     return all_reg
+
+
+def make_tukey(n, a=0.5):
+    x = np.arange(n)
+    weights = np.ones_like(x, dtype=float)
+    weights[0:int(a*n/2)] = 1/2*(1-np.cos(2*np.pi*x[0:int(a*n/2)]/(a*n)))
+    weights[-int(a*n/2):] = weights[0:int(a*n/2)][::-1]
+
+    return weights
