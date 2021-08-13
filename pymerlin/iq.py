@@ -50,11 +50,13 @@ def aes(img, mask=None, canny_edges=None, canny_sigma=2):
 
     if canny_edges is None:
         canny_edges = np.zeros_like(img)
-        for x in range(img.shape[0]):
-            canny_edges[x, :, :] = canny(img[x, :, :], sigma=canny_sigma)
+        for z in range(img.shape[2]):
+            canny_edges[:, :, z] = canny(
+                img[:, :, z], sigma=canny_sigma)
+
+    canny_edges *= mask
 
     img_edges = sobel(img/imax) * canny_edges
-
     aes = np.mean(img_edges[canny_edges == 1])
 
     return aes, img_edges, canny_edges
