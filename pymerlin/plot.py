@@ -286,10 +286,11 @@ def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
     max_d = float(maxd)
     max_r = float(maxr)
     if not max_d:
-        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+        max_d = np.ceil(
+            np.max(np.abs([all_reg['dx'], all_reg['dy'], all_reg['dz']])))
     if not max_r:
         max_r = np.ceil(np.rad2deg(
-            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
+            np.max(np.abs([all_reg['rx'], all_reg['ry'], all_reg['rz']]))))
 
     x = list(range(len(combreg)))
     if navtr:
