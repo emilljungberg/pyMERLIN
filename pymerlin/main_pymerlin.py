@@ -217,6 +217,8 @@ class PyMerlin_parser(object):
                             type=int, help='Kernel width')
         parser.add_argument('--sigma', required=False, default=0.0,
                             type=float, help='Sigma for Gaussian kernel')
+        parser.add_argument('--mask', required=False,
+                            default=None, help='Brain mask')
         parser.add_argument('--out', required=False,
                             default='ssim.nii.gz', type=str, help='Output filename')
 
@@ -232,7 +234,7 @@ class PyMerlin_parser(object):
         parser.add_argument('--canny', type=str,
                             help='Canny edge mask', required=False, default=None)
         parser.add_argument(
-            '--sigma', type=str, help='Canny edge filter sigma', required=False, default=2)
+            '--sigma', type=float, help='Canny edge filter sigma', required=False, default=2)
         parser.add_argument('--out', type=str,
                             help='Output folder', required=False, default='.')
 
@@ -326,7 +328,7 @@ def main_moco(args):
 
     if isinstance(reg_list, dict):
         moco_single(args.input, args.output, reg_list)
-    if args.nseg:
+    elif args.nseg:
         moco_sw(args.input, args.output, reg_list, args.nseg)
     else:
         moco_combined(args.input, args.output, reg_list)
@@ -459,7 +461,17 @@ def main_ssim(args):
     if len(image2.shape) > 3:
         image2 = image2[..., 0]
 
+    if args.mask:
+        mask = nib.load(args.mask).get_fdata()
+        image1 *= mask
+        image2 *= mask
+
     mssim, S = ssim(image1, image2, kw=args.kw, sigma=args.sigma)
+
+    if args.mask:
+        S *= mask
+
+    mssim = np.mean(S[mask == 1])
 
     ssim_nii = nib.Nifti1Image(S, nii1.affine)
     nib.save(ssim_nii, args.out)
@@ -472,7 +484,11 @@ def main_aes(args):
     nii = nib.load(args.img)
 
     img = make_3D(nib.load(args.img).get_fdata())
-    mask = make_3D(nib.load(args.mask).get_fdata())
+
+    if args.mask:
+        mask = make_3D(nib.load(args.mask).get_fdata())
+    else:
+        mask = np.ones_like(img)
 
     if args.canny:
         canny = make_3D(nib.load(args.canny).get_fdata())
