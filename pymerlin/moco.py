@@ -106,10 +106,10 @@ def moco_single(source_h5, dest_h5, reg):
     spokes_lo = info['spokes_lo'][0]
     lo_scale = info['lo_scale'][0]
 
-    traj = f_source['traj'][:]
+    traj = f_source['trajectory'][:]
     traj_corr = np.copy(traj)
 
-    data = f_source['noncartesian'][0, ...]
+    data = f_source['noncartesian'][:]
     data_corr = np.zeros_like(data)
 
     logging.info("Correcting data and trajectories")
@@ -119,8 +119,9 @@ def moco_single(source_h5, dest_h5, reg):
     H_low = calc_H(traj[0:spokes_lo, :, :], reg, spacing/lo_scale)
 
     for ircv in range(np.shape(data)[-1]):
-        data_corr[spokes_lo:, :, ircv] = data[spokes_lo:, :, ircv]*H_high
-        data_corr[0: spokes_lo, :,  ircv] = data[0:spokes_lo, :, ircv]*H_low
+        data_corr[0, spokes_lo:, :, ircv] = data[0, spokes_lo:, :, ircv]*H_high
+        data_corr[0, 0:spokes_lo, :,  ircv] = data[0,
+                                                   0:spokes_lo, :, ircv]*H_low
 
     # Write data to destination file
     valid_dest_h5 = check_filename(dest_h5)
@@ -132,12 +133,18 @@ def moco_single(source_h5, dest_h5, reg):
     f_source.copy('meta', f_dest)
 
     logging.info("Writing trajectory")
+    traj_chunk_dims = list(traj_corr.shape)
+    if traj_chunk_dims[0] > 1024:
+        traj_chunk_dims[0] = 1024
     f_dest.create_dataset("trajectory", data=traj_corr,
-                          chunks=np.shape(traj_corr), compression='gzip')
+                          chunks=tuple(traj_chunk_dims), compression='gzip')
 
     logging.info("Writing k-space data")
-    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr[np.newaxis, ...],
-                          chunks=np.shape(data_corr), compression='gzip')
+    data_chunk_dims = list(data_corr.shape)
+    if data_chunk_dims[1] > 1024:
+        data_chunk_dims[1] = 1024
+    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr,
+                          chunks=tuple(data_chunk_dims), compression='gzip')
 
     logging.info("Closing all files")
     f_source.close()
@@ -251,7 +258,7 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
 
         D_reg = reg_list[iw]
 
-        idx0 = idx1              # Start where last interleave ended
+        idx0 = idx1                   # Start where last interleave ended
         sps = int(D_reg['spi']/nseg)  # Spokes per segment
         idx1 = idx0 + sps
         print("i0:i1: {}:{}".format(idx0, idx1))
@@ -272,8 +279,11 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
     f_dest = h5py.File(valid_dest_h5, 'w')
 
     logging.info("Writing info and meta data")
-    f_dest.create_dataset("info", data=info)
-    f_source.copy('meta', f_dest)
+    try:
+        f_dest.create_dataset("info", data=info)
+        f_source.copy('meta', f_dest)
+    except:
+        print("No meta data, skipping this.")
 
     logging.info("Writing trajectory")
     traj_chunk_dims = list(traj_corr.shape)
