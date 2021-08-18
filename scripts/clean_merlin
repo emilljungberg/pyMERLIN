@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Remove interleaves and navigator folder to clean up space
+folder=$1
+cd $folder
+echo "Removing navigators"
+rm -rI navigators
+mkdir navigators
+echo "Removing interleaves"
+rm -rI interleaves
+mkdir interleaves
+cd ..
