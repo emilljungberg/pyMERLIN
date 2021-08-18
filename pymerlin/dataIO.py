@@ -17,6 +17,14 @@ import xmltodict
 
 
 def parse_fname(fname):
+    """Parse the filename from a NIFTI file
+
+    Args:
+        fname (str): Input filename
+
+    Returns:
+        str: Filename witout file ending
+    """
     bname, ext = os.path.splitext(os.path.basename(fname))
     if ext.lower() == '.nii':
         return fname
@@ -284,6 +292,14 @@ def modify_h5(source_h5, dest_h5, data, traj):
 
 
 def make_3D(img):
+    """Extract first 3D volume from 4D dataset 
+
+    Args:
+        img (np.array): 4D or 3D array
+
+    Returns:
+        np.array: 3D array
+    """
 
     if len(img.shape) > 3:
         return img[:, :, :, 0]

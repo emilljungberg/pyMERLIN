@@ -836,8 +836,7 @@ def versor_resample(registration, moving_image, fixed_image):
 
 
 def make_opt_par():
-    """
-    Creates dictionary with default registration parameters.
+    """Creates dictionary with default registration parameters.
 
     Recommendations and interpretation of the different parameters
     - Metric
