@@ -30,66 +30,8 @@ def calc_H(traj, D, spacing):
     return H
 
 
-def pyreshape(arr):
-    """Reshapes data for riesling
-
-    Args:
-        arr (array): Input array
-
-    Returns:
-        array: Reformatted
-    """
-
-    return np.reshape(np.reshape(arr, [1, np.prod(np.shape(arr))]), np.shape(arr)[::-1])
-
-
-def moco_interleave(source_h5, dest_h5, corr_pickle):
-    """Apply motion correctionn to h5 interleave
-
-    Args:
-        source_h5 (str): Source .h5 file to correct
-        dest_h5 (str): Output filename for corrected .h5 file
-        corr_pickle (str): Pickle file with correction factors
-    """
-    valid_dest_h5 = check_filename(dest_h5)
-
-    logging.info("Copying source file")
-    copyfile(source_h5, valid_dest_h5)
-
-    logging.info("Opening %s" % valid_dest_h5)
-    f = h5py.File(valid_dest_h5, 'r+')
-    info = f['info'][:]
-    spacing = info['voxel_size'][0]
-    D_reg = pickle.load(open(corr_pickle, 'rb'))
-
-    logging.info("Correcting trajectory and data")
-    # Correct trajectory
-    traj = f['traj']
-    traj_arr = traj[:]
-    traj_arr_py = pyreshape(traj_arr)
-    traj_arr_py_corr = np.matmul(traj_arr_py, D_reg['R'])
-
-    # Correct data
-    data = f['data/0000']
-    data_arr = data[:]
-    data_arr_py = pyreshape(data_arr)
-    data_arr_py_corr = np.zeros_like(data_arr_py)
-    H = calc_H(traj_arr_py, D_reg, spacing)
-
-    for ircv in range(np.shape(data_arr_py)[-1]):
-        data_arr_py_corr[:, :, ircv] = data_arr_py[:, :, ircv]*H
-
-    # Write data back to H5 file
-    logging.info("Writing back corrected data")
-    data[...] = pyreshape(data_arr_py_corr)
-    traj[...] = pyreshape(traj_arr_py_corr)
-
-    logging.info("Closing %s" % valid_dest_h5)
-    f.close()
-
-
 def moco_single(source_h5, dest_h5, reg):
-    """Corrects a radial dataset from a pickle file
+    """Corrects a radial dataset from a pickle file.
 
     Args:
         source_h5 (str): Source file to correct
@@ -218,7 +160,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
 
 def moco_sw(source_h5, dest_h5, reg_list, nseg):
-    """Corrects radial dataset from a sliding window reconstruction
+    """Corrects radial dataset from a sliding window reconstruction.
 
     Args:
         source_h5 (str): Source file to correct
