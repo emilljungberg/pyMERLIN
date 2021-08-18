@@ -1,7 +1,4 @@
 import numpy as np
-import sigpy
-from sigpy.mri.app import TotalVariationRecon
-import tqdm
 
 PHI_GOLD = np.pi*(3-np.sqrt(5))
 fibonacciNum = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144,
@@ -160,7 +157,7 @@ def linear_phyllotaxis(n, nint, sf):
     return traj
 
 
-def wong_roos_trajectory(n):
+def wong_roos_traj(n):
     """3D Radial trajectory as formulated by Wong and Roos
 
     Args:
@@ -186,7 +183,7 @@ def wong_roos_trajectory(n):
     return traj
 
 
-def wong_roos_interleaved_trajectory(n, nint):
+def wong_roos_interleaved_traj(n, nint):
     """Interleaved trajectory by Wong and Roos
 
     Args:
