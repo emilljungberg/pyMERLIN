@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'pyMERLIN'
+project = 'pymerlin'
 copyright = '2020, Emil Ljungberg'
 author = 'Emil Ljungberg'
 
@@ -72,4 +72,4 @@ html_static_path = ['_static']
 
 pygments_style = 'default'
 
-htmlhelp_basename = 'pyMERLINdoc'
+htmlhelp_basename = 'pymerlin doc'
