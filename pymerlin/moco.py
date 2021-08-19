@@ -1,7 +1,9 @@
-import h5py
 import logging
-from shutil import copyfile
 import pickle
+from shutil import copyfile
+
+import h5py
+
 from .dataIO import *
 
 

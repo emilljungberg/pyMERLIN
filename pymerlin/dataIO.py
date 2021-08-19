@@ -9,9 +9,9 @@ import logging
 import os
 from shutil import copyfile
 
+import h5py
 import ismrmrd
 import itk
-import h5py
 import numpy as np
 import xmltodict
 

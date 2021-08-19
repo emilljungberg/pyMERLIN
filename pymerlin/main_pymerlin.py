@@ -20,12 +20,13 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from .dataIO import arg_check_h5, arg_check_nii, read_image_h5, parse_fname, make_3D
-from .plot import gif_animation, report_plot
+from .dataIO import (arg_check_h5, arg_check_nii, make_3D, parse_fname,
+                     read_image_h5)
+from .iq import aes, nrmse, ssim
 from .moco import moco_combined, moco_single, moco_sw
+from .plot import gif_animation, report_plot
 from .reg import ants_pyramid, histogram_threshold_estimator
 from .utils import gradient_entropy, make_tukey
-from .iq import ssim, aes, nrmse
 
 
 class PyMerlin_parser(object):

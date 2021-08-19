@@ -2,9 +2,9 @@ import argparse
 
 import nibabel as nib
 import numpy as np
-from skimage.metrics import structural_similarity
-from skimage.filters import sobel
 from skimage.feature import canny
+from skimage.filters import sobel
+from skimage.metrics import structural_similarity
 
 """
 Tools for investigating image quality
