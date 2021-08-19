@@ -1,0 +1,18 @@
+# Documentation build
+doc/_build/
+doc/generated/
+docs/generated
+docs/_static
+docs/_autosummary
+
+# python
+*.egg-info
+*.pyc
+__pycache__
+
+# OS Generated files
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
