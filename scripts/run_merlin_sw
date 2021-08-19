@@ -19,7 +19,6 @@ usage() {
     --ds            | Navigator downsampling (3)
     --fov           | MOCO field of view (240)
     --ow            | Overwrite files without asking
-    --gap           | Set gap for Zinfandel
     --step          | Step size for sliding window
     --ref           | Reference navigator
     --batchitk      | Batch size for parallel ITK
@@ -66,7 +65,6 @@ fov=240
 overwrite_files=0
 verbose=0
 riesling_verbose=""
-gap=
 spoke_step=
 tukey=
 ref_nav_num=0
@@ -109,10 +107,6 @@ while [ "$1" != "" ]; do
     --ow)
         shift
         overwrite_files=1
-        ;;
-    --gap)
-        shift
-        gap=$1
         ;;
     --ref)
         shift
