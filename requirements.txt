@@ -1,9 +1,12 @@
-itk
-sigpy
 h5py
 ismrmrd
+imageio
+itk
+matplotlib
+nibabel
+numpy
 pandas
-xmltodict
-shutil
-logging
 tqdm
+shutil
+scikit-image
+xmltodict

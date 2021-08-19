@@ -1,10 +1,8 @@
-import h5py
-import itk
 import logging
 import os
 import pickle
-import tqdm
 
+import itk
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

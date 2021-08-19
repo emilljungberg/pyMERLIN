@@ -5,8 +5,7 @@ import imageio
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
-from IPython.display import HTML, display
-from matplotlib import animation, rc
+from matplotlib import animation
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from .utils import parse_combreg

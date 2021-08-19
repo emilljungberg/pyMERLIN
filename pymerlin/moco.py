@@ -1,6 +1,4 @@
 import logging
-import pickle
-from shutil import copyfile
 
 import h5py
 
