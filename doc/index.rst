@@ -4,49 +4,33 @@
    contain the root `toctree` directive.
 
 
-pyMERLIN Documentation
-====================================
-
-MERLIN - Motion Elimination in Radial acquisition Leveraging Interleaved Navigators
-
-.. image:: logo-01.png
-    :width: 400
-    :alt: MERLIN Logo
-    :align: center
-
-
-Example of MERLIN
-
-.. image:: MERLIN_ISMRM_2020_fig4.jpg
-   :width: 400
-   :alt: MERLIN Example from ISMRM 2020
-   :align: center
-
-Todo list
--------------
-Features to implement:
-
-   - [ ] MOCO pipeline: 
-
-Documentation to write:
+.. include:: ../README.rst
 
 
 .. toctree::
    :hidden:
-   :caption: Getting Started
+   :caption: User Guide
 
    getting_started
+   tools
+   pipelines
 
 .. toctree::
    :hidden:
-   :caption: Core functionality
+   :caption: Tools
 
-   moco
-   recon
+
+.. toctree::
+   :hidden:
+   :caption: Core API
+
    dataIO
+   moco
    reg
-
-
+   trajectory
+   util
+   plot
+   iq
 
 
 .. Indices and tables

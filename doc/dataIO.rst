@@ -2,7 +2,7 @@ Data I/O
 ====================
 		
 .. automodule::
-   pyMERLIN.dataIO
+   pymerlin.dataIO
 
 
 ITK functionality
@@ -11,17 +11,19 @@ ITK functionality
     :toctree: generated
     :nosignatures:
 
-    pyMERLIN.dataIO.create_image
+    pymerlin.dataIO.create_image
 
-File Reading
---------------------
+File reading and manipulation
+--------------------------------
 .. autosummary::
     :toctree: generated
     :nosignatures:
 
-    pyMERLIN.dataIO.read_image_h5
-    pyMERLIN.dataIO.read_radial_h5
-    pyMERLIN.dataIO.arg_check_h5
-    pyMERLIN.dataIO.arg_check_nii
-    pyMERLIN.dataIO.check_filename
-    pyMERLIN.dataIO.read_ismrmrd
+    pymerlin.dataIO.parse_fname
+    pymerlin.dataIO.arg_check_h5
+    pymerlin.dataIO.arg_check_nii
+    pymerlin.dataIO.check_filename
+    pymerlin.dataIO.read_image_h5
+    pymerlin.dataIO.read_radial_h5
+    pymerlin.dataIO.read_ismrmrd
+    pymerlin.dataIO.make_3D

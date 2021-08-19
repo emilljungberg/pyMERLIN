@@ -1,15 +1,46 @@
 Registration Framework
 =========================
 
-This is the most important part of MERLIN which contains all the functionality for image registration. The framework builds on ITK and is heavily inspired by ANTs.
+.. automodule::
+    pymerlin.reg
 
 Core registration Functions
 -----------------------------
+The main workhorse of the registration is the `ants_pyramid` function. The registration is written in ITK but modeled on the settings in the ANTs pyramid registration, and thus the name.
+
 .. autosummary::
     :toctree: generated
     :nosignatures:
 
-    pyMERLIN.reg.ants_pyramid
+    pymerlin.reg.ants_pyramid
 
-Auxilary Functions
+Filter and Masking
 -----------------------------
+Some tools for masking and thresholding
+
+.. autosummary::
+    :toctree: generated
+    :nosignatures:
+
+    pymerlin.reg.sphere_mask
+    pymerlin.reg.brain_mask
+    pymerlin.reg.otsu_filter
+    pymerlin.reg.winsorize_image
+    pymerlin.reg.threshold_image
+    pymerlin.reg.histogram_threshold_estimator
+
+Registration help
+-----------------------------
+Tools for the registration framework
+
+.. autosummary::
+    :toctree: generated
+    :nosignatures:
+
+    pymerlin.reg.versor_reg_summary
+    pymerlin.reg.versor_watcher
+    pymerlin.reg.resample_image
+    pymerlin.reg.get_versor_factors
+    pymerlin.reg.setup_optimizer
+    pymerlin.reg.versor_resample
+    pymerlin.reg.make_opt_par
