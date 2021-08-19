@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Containes the core registration components for MERLIN. The framework builds on ITK and is heavily inspired by ANTs.
+"""
+
 import logging
 import os
 import pickle

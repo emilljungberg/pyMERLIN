@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+Tool for quick viewing of .h5 image files. 
+
+Example usage::
+
+    h5viewer my_image.h5
+
+"""
+
 import matplotlib.pyplot as plt
 
 from .dataIO import *

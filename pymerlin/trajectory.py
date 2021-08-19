@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+"""
+Different 3D radial k-space trajectories for interleaved acquisitions
+"""
+
 import numpy as np
 
 PHI_GOLD = np.pi*(3-np.sqrt(5))

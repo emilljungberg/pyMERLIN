@@ -1,10 +1,52 @@
 #!/usr/bin/env python3
 
 """
-Main script to run MERLIN functions on the command line. The executable works like the git command with
-subcommands. Example:
+Main script to run MERLIN functions on the command line. Uses ``.h5`` files as input, assuming that the dataset ``image`` is occupied by the image data. 
 
-    main_pymerlin.py reg <args>
+The executable works like the git command with
+subcommands.
+
+usage: pymerlin <command> [<args>]
+
+    Available commands are:
+        reg         Register data
+        merge       Merge registration into series
+        moco        Run moco
+        report      View report of data
+        metric      Image metric analysis
+        view        View h5 file
+        gif         Navigator and registration animation
+        ssim        Calculate Structural Similarity Index Measure
+        aes         Calculate Average Edge Strength
+        nrmse       Calculate Normalised Root Mean Squared Error
+        tukey       Applies Tukey filter to radial k-space data
+
+To get more help for a specific command add ``-h``::
+
+    >> pymerlin reg -h
+
+    usage: pymerlin reg [<args>]
+
+    MERLIN Registration
+
+    optional arguments:
+    -h, --help            show this help message and exit
+    --fixed FIXED         Fixed image
+    --moving MOVING       Moving image
+    --reg REG             Registration parameters
+    --log LOG             Registration history log
+    --fixout FIXOUT       Name of fixed image output
+    --moveout MOVEOUT     Name of registered moving image output
+    --rad RAD             Radius of fixed mask
+    --thr THR             Low image threshold
+    --sigma SIGMA [SIGMA ...]
+                            List of sigmas
+    --shrink SHRINK [SHRINK ...]
+                            Shrink factors
+    --metric METRIC       Image metric
+    --verbose VERBOSE     Log level (0,1,2)
+
+
 
 By: Emil Ljungberg, KCL, 2020
 """
@@ -22,11 +64,11 @@ import numpy as np
 
 from .dataIO import (arg_check_h5, arg_check_nii, make_3D, parse_fname,
                      read_image_h5)
-from .iq import aes, nrmse, ssim
+from .iq import aes, nrmse, ssim, gradient_entropy
 from .moco import moco_combined, moco_single, moco_sw
 from .plot import gif_animation, report_plot
 from .reg import ants_pyramid, histogram_threshold_estimator
-from .utils import gradient_entropy, make_tukey
+from .utils import make_tukey
 
 
 class PyMerlin_parser(object):
@@ -45,13 +87,13 @@ class PyMerlin_parser(object):
         merge       Merge registration into series
         moco        Run moco
         report      View report of data
-        view        View h5 file
-        thr         Background threshold estimation
         metric      Image metric analysis
+        view        View h5 file
         gif         Navigator and registration animation
         ssim        Calculate Structural Similarity Index Measure
         aes         Calculate Average Edge Strength
         nrmse       Calculate Normalised Root Mean Squared Error
+        tukey       Applies Tukey filter to radial k-space data
     '''
                                          )
 

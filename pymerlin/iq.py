@@ -1,14 +1,12 @@
-import argparse
+# -*- coding: utf-8 -*-
+"""
+Tools for investigating image quality
+"""
 
-import nibabel as nib
 import numpy as np
 from skimage.feature import canny
 from skimage.filters import sobel
 from skimage.metrics import structural_similarity
-
-"""
-Tools for investigating image quality
-"""
 
 
 def ssim(img1, img2, kw=11, sigma=0):

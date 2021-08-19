@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Tools for applying motion correction to k-space data
+"""
+
 import logging
 
 import h5py

@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Plotting tools for 3D and 4D data.
+"""
+
 import pickle
 import warnings
 

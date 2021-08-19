@@ -1,4 +1,8 @@
-# Various helpful functions
+# -*- coding: utf-8 -*-
+"""
+Utilities for MERLIN
+"""
+
 import numpy as np
 
 

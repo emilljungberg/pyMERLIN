@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-MERLIN includes several convenience functinos for data input and output. 
-Since pyMERLIN is tightly integrated with RIESLING, functions for reading k-space and image .h5 files have been included.
+MERLIN includes several convenience functions for data input and output. 
+Since pyMERLIN is tightly integrated with RIESLING, functions for reading k-space and image ``.h5`` files have been included.
 """
 
 import argparse
