@@ -1,6 +1,7 @@
+import matplotlib.pyplot as plt
+
 from .dataIO import *
 from .plot import plot_3plane
-import matplotlib.pyplot as plt
 
 
 def main():

@@ -1,14 +1,15 @@
-from pymerlin.utils import parse_combreg
-import numpy as np
 import pickle
 import warnings
 
 import imageio
-from IPython.display import display, HTML
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
+import numpy as np
+from IPython.display import HTML, display
 from matplotlib import animation, rc
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+from .utils import parse_combreg
 
 
 def plot_3plane(I, title='', cmap='gray', vmin=None, vmax=None):
@@ -86,6 +87,21 @@ def timeseries_video(img_ts, interval=100, title=''):
 
 
 def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='col'):
+    """Tiled plot of 3D data
+
+    Args:
+        I (3D array): Data to plot, expanding along last dimentsion
+        ncol (int, optional): Number of columns. Defaults to None.
+        nrow (int, optional): Number of rows. Defaults to None.
+        cmap (str, optional): Matplotlob colormap. Defaults to 'gray'.
+        vmin (float, optional): Color range lower limit. Defaults to None.
+        vmax (float, optional): Color range higher limit. Defaults to None.
+        order (str, optional): Row or column order. Defaults to 'col'.
+
+    Returns:
+        np.array: Tiled array
+    """
+
     """Multi-pane plot of 3D data
 
     Inspired by the matlab function imshow3.
@@ -154,17 +170,19 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
 
 
 def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, max_d=None, max_r=None):
-    """
-    Creates gif animation of registration results and navigator images.
+    """GIF animation of registration results
 
-    Input:
-        - reg_out: pickle file with registration output
-        - images: List of navigator slices
-        - out_name: Output name
-        - tnav: Duration of each navigator in seconds for time axis (None)
-        - t0: Time offset due to WASPI and dda (0)
-        - max_d: Max displacement on y-axis (None)
-        - max_r: Max rotation on y-axis (None)
+    Args:
+        reg_out (str): File name to pickle file
+        images (np.array): Array of images to display
+        out_name (str, optional): Output. Defaults to 'animation.gif'.
+        tnav (float, optional): Navigator duration to display x-axis with time. Defaults to None.
+        t0 (int, optional): Starting time. Defaults to 0.
+        max_d (float, optional): Limit of translation plot. Defaults to None.
+        max_r (float, optional): Limit of translation plot. Defaults to None.
+
+    Raises:
+        TypeError: If number of navigator images in `images` is not the same as number of registration objects in pickle file.
     """
 
     combreg = pickle.load(open(reg_out, 'rb'))
@@ -270,6 +288,15 @@ def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, ma
 
 
 def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
+    """Plot registration results
+
+    Args:
+        combreg (str): Filename of registration results
+        maxd (float): Max displacement for y-limit
+        maxr (float): Max rotation for y-limit
+        navtr (float, optional): Duration of navigator for time axis. Defaults to None.
+        bw (bool, optional): Plot in black and white. Defaults to False.
+    """
 
     # Summarise statistics
     all_reg = parse_combreg(combreg)
@@ -326,76 +353,3 @@ def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
         d_ax.set_xlabel('Interleave')
 
     plt.tight_layout()
-
-#### Old ####
-
-
-def compare_timeseries(TS, title):
-    fig = plt.figure(figsize=(14, 4))
-    [nx, ny, nz, nt] = np.shape(TS)
-
-    fig.add_subplot(3, 1, 1)
-    imshow3(TS[int(nx/2), :, :, :]-np.repeat(TS[int(nx/2), :, :, 0:1],
-                                             repeats=nt, axis=-1), nt, 1, vmin=-.3, vmax=.3)
-    plt.title(title, size=20)
-
-    fig.add_subplot(3, 1, 2)
-    imshow3(np.rot90(TS[:, int(ny/2), :, :]-np.repeat(TS[:, int(ny/2),
-                                                         :, 0:1], repeats=nt, axis=-1)), nt, 1, vmin=-.3, vmax=.3)
-
-    fig.add_subplot(3, 1, 3)
-    imshow3(np.rot90(TS[:, :, int(nz/2), :]-np.repeat(TS[:, :, int(nz/2),
-                                                         0:1], repeats=nt, axis=-1), 3), nt, 1, vmin=-.3, vmax=.3)
-
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_rotation_translation(df_list, names):
-    """
-    Plot rotation and translation result from registration outputs
-
-    Input:
-        - df_list: Single dictionary or list of dicts
-        - names: Single string name or list of strings
-    """
-
-    if not isinstance(df_list, list):
-        df_list = [df_list]
-
-    if not isinstance(names, list):
-        names = [names]
-
-    fig = plt.figure(figsize=(13, 6))
-    x = np.arange(np.shape(df_list[0])[1])
-
-    for (i, k) in enumerate(['X', 'Y', 'Z']):
-        fig.add_subplot(2, 3, i+1)
-        key = 'Versor %s' % k
-        for (df, name) in zip(df_list, names):
-            plt.plot(x, np.rad2deg(df.loc[key, :]), '-o', label=name)
-
-        if i == 0:
-            plt.legend()
-
-        plt.grid()
-        plt.xlabel('Interleave')
-        plt.ylabel('Angle [deg]')
-        plt.title('Rotation in %s' % k, size=16)
-
-    for (i, k) in enumerate(['X', 'Y', 'Z']):
-        fig.add_subplot(2, 3, i+1+3)
-        key = 'Trans %s' % k
-        for (df, name) in zip(df_list, names):
-            plt.plot(x, df.loc[key, :], '-o', label=name)
-
-        if i == 0:
-            plt.legend()
-
-        plt.grid()
-        plt.xlabel('Moving Interleave num')
-        plt.ylabel('Distance [mm]')
-        plt.title('Translation in %s' % k, size=16)
-
-    plt.tight_layout()
-    plt.show()

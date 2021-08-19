@@ -839,22 +839,13 @@ def make_opt_par():
     """Creates dictionary with default registration parameters.
 
     Recommendations and interpretation of the different parameters
-    - Metric
-        Default is MS (mean squares)
+    - Metric: Default is MS (mean squares)
 
-    - Opt range
-        Expected range of motion in deg and mm
+    - Opt range: Expected range of motion in deg and mm
 
-    - Learning rate
-        The initial step size in the opimiser. Too large and it will be unstable.
-        Too small and it might not reach the minimum
+    - Learning rate: The initial step size in the opimiser. Too large and it will be unstable. Too small and it might not reach the minimum
 
-    - Relaxation factor
-        The fraction by which the step size is reduced every time the optimiser
-        changes direction. Too small value will reduce the step size too quickly
-        and can risk local minima. Too large and the optimiser might need too many
-        itterations. For noisy data the optimiser might change a lot and a higher
-        value might be good.
+    - Relaxation factor: The fraction by which the step size is reduced every time the optimiser changes direction. Too small value will reduce the step size too quickly and can risk local minima. Too large and the optimiser might need too many itterations. For noisy data the optimiser might change a lot and a higher value might be good.
     """
     D = {'metric': 'MS',
          'opt_range': [10, 30],

@@ -48,22 +48,15 @@ def rotmat(rot_angles):
     return R
 
 
-def gradient_entropy(img):
-    """
-    Calculates gradient entropy of ND image
-
-    From: McGee, K.P., Manduca, A., Felmlee, J.P., Riederer, S.J. and Ehman, R.L. (2000), 
-    Image metric‐based correction (Autocorrection) of motion effects: Analysis of image metrics. 
-    J. Magn. Reson. Imaging, 11: 174-181. 
-    https://doi.org/10.1002/(SICI)1522-2586(200002)11:2<174::AID-JMRI15>3.0.CO;2-3
-    """
-
-    h = img/np.sum(img**2)
-    GE = -np.sum(h*np.log2(h))
-    return GE
-
-
 def parse_combreg(combreg):
+    """Parse combined registration object
+
+    Args:
+        combreg (dict): Dictionary with registration results
+
+    Returns:
+        dict: Parsed registration results
+    """
     all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
     for k in all_reg.keys():
         for i in range(len(combreg)):
@@ -73,6 +66,15 @@ def parse_combreg(combreg):
 
 
 def make_tukey(n, a=0.5):
+    """Make a tukey window
+
+    Args:
+        n (int): Number of points
+        a (float, optional): Width of window. Defaults to 0.5.
+
+    Returns:
+        np.array: Weights
+    """
     x = np.arange(n)
     weights = np.ones_like(x, dtype=float)
     weights[0:int(a*n/2)] = 1/2*(1-np.cos(2*np.pi*x[0:int(a*n/2)]/(a*n)))

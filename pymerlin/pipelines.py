@@ -1,12 +1,13 @@
-from .reg import *
-from .dataIO import *
-from .recon import *
-from .plot import *
+import pickle
+
+import itk
 from sigpy import nufft_adjoint
 from sigpy.mri.app import TotalVariationRecon
 from tqdm import tqdm
-import itk
-import pickle
+
+from .dataIO import *
+from .plot import *
+from .reg import *
 
 
 def MERLIN_v1(raw, traj, nint, TV_lambda, ds, voxel_size):
