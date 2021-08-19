@@ -2,7 +2,9 @@
 """
 Tool for quick viewing of .h5 image files. 
 
-Example usage::
+Example usage.
+
+.. code:: bash
 
     h5viewer my_image.h5
 

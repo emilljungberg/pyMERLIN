@@ -3,25 +3,28 @@
 """
 Main script to run MERLIN functions on the command line. Uses ``.h5`` files as input, assuming that the dataset ``image`` is occupied by the image data. 
 
-The executable works like the git command with
-subcommands.
+The executable works like the git command with subcommands.
 
-usage: pymerlin <command> [<args>]
+.. code:: bash
 
-    Available commands are:
-        reg         Register data
-        merge       Merge registration into series
-        moco        Run moco
-        report      View report of data
-        metric      Image metric analysis
-        view        View h5 file
-        gif         Navigator and registration animation
-        ssim        Calculate Structural Similarity Index Measure
-        aes         Calculate Average Edge Strength
-        nrmse       Calculate Normalised Root Mean Squared Error
-        tukey       Applies Tukey filter to radial k-space data
+    usage: pymerlin <command> [<args>]
 
-To get more help for a specific command add ``-h``::
+        Available commands are:
+            reg         Register data
+            merge       Merge registration into series
+            moco        Run moco
+            report      View report of data
+            metric      Image metric analysis
+            view        View h5 file
+            gif         Navigator and registration animation
+            ssim        Calculate Structural Similarity Index Measure
+            aes         Calculate Average Edge Strength
+            nrmse       Calculate Normalised Root Mean Squared Error
+            tukey       Applies Tukey filter to radial k-space data
+
+To get more help for a specific command add ``-h``.
+
+.. code:: bash
 
     >> pymerlin reg -h
 
@@ -46,9 +49,6 @@ To get more help for a specific command add ``-h``::
     --metric METRIC       Image metric
     --verbose VERBOSE     Log level (0,1,2)
 
-
-
-By: Emil Ljungberg, KCL, 2020
 """
 
 import argparse
