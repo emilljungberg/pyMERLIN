@@ -8,5 +8,6 @@ numpy
 pandas
 tqdm
 shutil
+SimpleITK
 scikit-image
 xmltodict
