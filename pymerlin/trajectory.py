@@ -131,9 +131,9 @@ def linear_phyllotaxis(n, nint, sf):
     and arbitrary smoothness factor
 
     Args:
-        n (int): Number of spokes
-        nint (int): Number of interleaves
-        sf (int): Smoothness factor
+        n (int): Number of spokes (N_t)
+        nint (int): Number of interleaves (N_i)
+        sf (int): Smoothness factor (s)
 
     Returns:
         array: Trajectory
@@ -144,21 +144,21 @@ def linear_phyllotaxis(n, nint, sf):
     """
 
     traj = np.zeros((n, 3))
-    spi = int(n/nint)
+    Ns = int(n/nint)
 
-    i = np.arange(spi)
+    i = np.arange(Ns)
     phi0 = i * PHI_GOLD * fibonacciNum[sf]
     z0 = 1 - 2*nint*i/(n-1)
     r = 1
 
-    for k in range(nint):
-        z = z0 - k*2/(n-1)
-        phi = phi0 + k * PHI_GOLD
+    for j in range(nint):
+        z = z0 - j*2/(n-1)
+        phi = phi0 + j * PHI_GOLD
 
         theta = np.arccos(z)
-        traj[k*spi: (k+1)*spi, 0] = r * np.sin(theta) * np.cos(phi)
-        traj[k*spi: (k+1)*spi, 1] = r * np.sin(theta) * np.sin(phi)
-        traj[k*spi: (k+1)*spi, 2] = r * z
+        traj[j*Ns: (j+1)*Ns, 0] = r * np.sin(theta) * np.cos(phi)
+        traj[j*Ns: (j+1)*Ns, 1] = r * np.sin(theta) * np.sin(phi)
+        traj[j*Ns: (j+1)*Ns, 2] = r * z
 
     return traj
 
