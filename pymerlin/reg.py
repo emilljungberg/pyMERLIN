@@ -428,6 +428,11 @@ def get_versor_factors(registration):
                    'dz': regParameters[5]
                    }
 
+    print("-----OFFSET-----")
+    print(offset)
+    print("-----MATRIX--------")
+    print(matrix)
+
     return corrections
 
 
@@ -493,6 +498,9 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
                  threshold=None,
                  sigmas=[2, 1, 0], shrink=[4, 2, 1],
                  metric='MS',
+                 learning_rate=0.1,
+                 convergence_window_size=10,
+                 convergence_value=1E-6
                  verbose=2):
     """Multi-scale rigid body registration
 
@@ -597,6 +605,7 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     initializer.SetTransform(initialTransform)
     initializer.SetFixedImage(fixed_image)
     initializer.SetMovingImage(moving_image)
+    initializer.GeometryOn()
     initializer.InitializeTransform()
 
     VersorType = itk.Versor[itk.D]
@@ -611,7 +620,8 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     initialTransform.SetRotation(rotation)
 
     # Setup optimizer
-    optimizer = setup_optimizer(PixelType, opt_range, relax_factor)
+    optimizer = setup_optimizer(PixelType, opt_range, relax_factor,
+                                learning_rate, convergence_window_size, convergence_value)
 
     # Setup registration
     registration = itk.ImageRegistrationMethodv4[ImageType,
@@ -700,7 +710,8 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
         reg_par_name = "%s_2_%s_reg.p" % (move_bname, fix_bname)
 
     logging.info("Writing registration parameters to: %s" % reg_par_name)
-    pickle.dump(corrections, open(reg_par_name, "wb"))
+    with open(reg_par_name, 'wb') as f:
+        pickle.dump(corrections, f)
 
     return registration, reg_out, reg_par_name
 
@@ -868,6 +879,7 @@ def convert_itk_matrix(m):
     Returns:
         np.array: Numpy 3x3 matrix
     """
+    print(m)
     np_m = np.ndarray([3, 3])
     for i in range(3):
         for j in range(3):
