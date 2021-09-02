@@ -436,7 +436,7 @@ def get_versor_factors(registration):
     return corrections
 
 
-def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0.1, convergence_window_size=10, convergence_value=1E-6):
+def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0.1, convergence_window_size=10, convergence_value=1E-6, min_step_length=1E-4):
     """Setup optimizer object
 
     Args:
@@ -476,31 +476,37 @@ def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0
     logging.info("Learning rate: %.2f" % learning_rate)
     logging.info("Relaxation factor: %.2f" % relax_factor)
     logging.info("Convergence window size: %d" % convergence_window_size)
-    logging.info("Convergence value: %.2f" % convergence_value)
+    logging.info("Convergence value: %f" % convergence_value)
 
     optimizer.SetNumberOfIterations(nit)
     optimizer.SetLearningRate(learning_rate)          # Default in ANTs
     optimizer.SetRelaxationFactor(relax_factor)
     optimizer.SetConvergenceWindowSize(convergence_window_size)
     optimizer.SetMinimumConvergenceValue(convergence_value)
+    optimizer.SetMinimumStepLength(min_step_length)
 
     return optimizer
 
 
 def ants_pyramid(fixed_image_fname, moving_image_fname,
                  moco_output_name=None, fixed_output_name=None,
-                 fixed_mask_radius=None,
+                 fixed_mask_fname=None,
                  reg_par_name=None,
                  iteration_log_fname=None,
-                 opt_range=[10, 30],
+                 opt_range=[np.deg2rad(1), 10],
+                 init_angle=0,
+                 init_axis=[0, 0, 1],
                  relax_factor=0.5,
-                 winsorize=[0.005, 0.995],
+                 winsorize=None,
                  threshold=None,
-                 sigmas=[2, 1, 0], shrink=[4, 2, 1],
+                 sigmas=[0],
+                 shrink=[1],
                  metric='MS',
-                 learning_rate=0.1,
+                 learning_rate=5,
                  convergence_window_size=10,
-                 convergence_value=1E-6
+                 convergence_value=1E-6,
+                 min_step_length=1E-6,
+                 nit=250,
                  verbose=2):
     """Multi-scale rigid body registration
 
@@ -551,8 +557,10 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     data_fix, spacing_fix = read_image_h5(fixed_image_fname)
     logging.info("Reading moving image: {}".format(moving_image_fname))
     data_move, spacing_move = read_image_h5(moving_image_fname)
-    fixed_image = create_image(data_fix, spacing_fix, dtype=PixelType)
-    moving_image = create_image(data_move, spacing_move, dtype=PixelType)
+    fixed_image = create_image(
+        data_fix, spacing_fix, dtype=PixelType, max_image_value=1E3)
+    moving_image = create_image(
+        data_move, spacing_move, dtype=PixelType, max_image_value=1E3)
 
     # Winsorize filter
     if winsorize:
@@ -612,16 +620,18 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     VectorType = itk.Vector[itk.D, 3]
     rotation = VersorType()
     axis = VectorType()
-    axis[0] = 0
-    axis[1] = 0
-    axis[2] = 1
-    angle = 0
+    axis[0] = init_axis[0]
+    axis[1] = init_axis[1]
+    axis[2] = init_axis[2]
+    angle = init_angle
     rotation.Set(axis, angle)
     initialTransform.SetRotation(rotation)
 
     # Setup optimizer
-    optimizer = setup_optimizer(PixelType, opt_range, relax_factor,
-                                learning_rate, convergence_window_size, convergence_value)
+    optimizer = setup_optimizer(PixelType, opt_range, relax_factor, nit=int(nit),
+                                learning_rate=learning_rate, convergence_window_size=int(
+                                    convergence_window_size),
+                                convergence_value=convergence_value, min_step_length=min_step_length)
 
     # Setup registration
     registration = itk.ImageRegistrationMethodv4[ImageType,
@@ -647,15 +657,18 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
     registration.SetSmoothingSigmasPerLevel(smoothingSigmasPerLevel)
     registration.SetShrinkFactorsPerLevel(shrinkFactorsPerLevel)
 
-    if fixed_mask_radius:
-        logging.info("Creating fixed space spherical mask with radius: {}".format(
-            fixed_mask_radius))
+    if fixed_mask_fname:
+        logging.info(
+            "Loading fixed mask from file: {}".format(fixed_mask_fname))
         MaskType = itk.ImageMaskSpatialObject[3]
-        spatial_mask = MaskType.New()
-        mask = sphere_mask(fixed_image, fixed_mask_radius)
-        spatial_mask.SetImage(mask)
-        spatial_mask.Update()
-        metric.SetFixedImageMask(spatial_mask)
+        mask = MaskType.New()
+        data_mask_fix, spacing_mask_fix = read_image_h5(fixed_mask_fname)
+        mask_img = create_image(
+            data_mask_fix, spacing_mask_fix, dtype=itk.UC, max_image_value=1)
+
+        mask.SetImage(mask_img)
+        mask.Update()
+        metric.SetFixedImageMask(mask)
 
     # Watch the itteration events
     reg_out = {'cv': [], 'tX': [], 'tY': [], 'tZ': [],
