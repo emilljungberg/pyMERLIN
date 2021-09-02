@@ -15,107 +15,6 @@ import pandas as pd
 from .dataIO import create_image, read_image_h5
 
 
-def sphere_mask(image_reference, radius):
-    """Make spherical mask
-
-    Args:
-        image_reference (itk.Image): Input image
-        radius ([type]): Mask relative radius (<1)
-
-    Returns:
-        itk.Image: Binary brain mask
-    """
-
-    img_size = image_reference.GetLargestPossibleRegion().GetSize()
-    spacing = np.array(image_reference.GetSpacing())
-
-    rx = np.linspace(-1, 1, img_size[0])
-    ry = np.linspace(-1, 1, img_size[1])
-    rz = np.linspace(-1, 1, img_size[2])
-
-    [X, Y, Z] = np.meshgrid(rx, ry, rz)
-    sphere_radius = np.sqrt(X**2 + Y**2 + Z**2)
-    sphere = np.zeros_like(sphere_radius)
-    sphere[sphere_radius < radius] = 1
-
-    sphere_img = create_image(sphere, spacing, dtype=itk.UC)
-
-    return sphere_img
-
-
-def brain_mask(input_image, hole_radius=5, dilation=3, gauss_variance=100, gauss_max_ker=30):
-    """Brain mask based on Otsu filter
-
-    Also applies hold filling, mask dilation, and smoothing on final mask
-
-    Args:
-        input_image (itk.Image): Input image
-        hole_radius (int, optional): Hole radius to fill. Defaults to 5.
-        dilation (int, optional): Dilate mask by X voxels. Defaults to 3.
-        gauss_variance (int, optional): Variance of smoothing filter. Defaults to 100.
-        gauss_max_ker (int, optional): Max kernel width of smoothing filter. Defaults to 30.
-
-    Returns:
-        itk.Image: Brain mask
-    """
-    Dimension = 3
-    InputPixelType = itk.template(input_image)[1][0]
-    OutputPixelType = itk.UC
-    InputImageType = itk.Image[InputPixelType, Dimension]
-    OutputImageType = itk.Image[OutputPixelType, Dimension]
-
-    # Otsu Therholding Filter
-    OtsuFilterType = itk.OtsuThresholdImageFilter[InputImageType,
-                                                  OutputImageType]
-    otsu_filter = OtsuFilterType.New()
-    otsu_filter.SetOutsideValue(1)
-    otsu_filter.SetInsideValue(0)
-    otsu_filter.SetInput(input_image)
-
-    # Fill Holes
-    FillFilterType = itk.VotingBinaryHoleFillingImageFilter[OutputImageType, OutputImageType]
-    fill_filter = FillFilterType.New()
-    fill_filter.SetRadius([hole_radius, hole_radius, hole_radius])
-    fill_filter.SetBackgroundValue(0)
-    fill_filter.SetForegroundValue(1)
-    fill_filter.SetMajorityThreshold(10)
-    fill_filter.SetInput(otsu_filter.GetOutput())
-
-    # Dilate mask
-    StructuringElementType = itk.FlatStructuringElement[Dimension]
-    DilateFilterType = itk.BinaryDilateImageFilter[OutputImageType,
-                                                   OutputImageType, StructuringElementType]
-    binaryDilate = DilateFilterType.New()
-    structuringElement = StructuringElementType()
-    structuringElement.SetRadius(dilation)
-    binaryDilate.SetKernel(structuringElement)
-    binaryDilate.SetDilateValue(1)
-    binaryDilate.SetInput(fill_filter.GetOutput())
-
-    # Cast back to float image
-    CastFilterType = itk.RescaleIntensityImageFilter[OutputImageType, InputImageType]
-    cast_filter = CastFilterType.New()
-    cast_filter.SetOutputMinimum(0)
-    cast_filter.SetOutputMaximum(1)
-    cast_filter.SetInput(binaryDilate.GetOutput())
-
-    # Smooth data
-    SmoothingFilterType = itk.DiscreteGaussianImageFilter[InputImageType, InputImageType]
-    smoothing_filter = SmoothingFilterType.New()
-    smoothing_filter.SetVariance(gauss_variance)
-    smoothing_filter.SetMaximumKernelWidth(gauss_max_ker)
-    smoothing_filter.SetInput(cast_filter.GetOutput())
-
-    # Final update
-    smoothing_filter.Update()
-
-    threshold = otsu_filter.GetThreshold()
-    print("Otsu Threshold: {}".format(threshold))
-    output = smoothing_filter.GetOutput()
-
-    return output
-
-
 def otsu_filter(image):
     """Applies an Otsu filter
 
@@ -293,7 +192,7 @@ def versor_watcher(reg_out, optimizer):
         reg_out['lrr'].append(lrr)
 
         logging.debug("{:d} \t {:6.5f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
-            cit, cv, np.rad2deg(cpos[0]), np.rad2deg(cpos[1]), np.rad2deg(cpos[2]), cpos[3], cpos[4], cpos[5]))
+            cit, cv, np.rad2deg(cpos[0]) * 2, np.rad2deg(cpos[1]) * 2, np.rad2deg(cpos[2]) * 2, cpos[3], cpos[4], cpos[5]))
 
     return opt_watcher
 
@@ -415,23 +314,18 @@ def get_versor_factors(registration):
         registration.GetOutput().Get().GetFixedParameters())
     finalTransform.SetParameters(final_parameters)
 
-    matrix = convert_itk_matrix(finalTransform.GetMatrix())
+    matrix = itk.array_from_matrix(finalTransform.GetMatrix())
     offset = np.array(finalTransform.GetOffset())
     regParameters = registration.GetOutput().Get().GetParameters()
 
     corrections = {'R': matrix,
-                   'rx': regParameters[0],
-                   'ry': regParameters[1],
-                   'rz': regParameters[2],
+                   'rx': regParameters[0] * 2,
+                   'ry': regParameters[1] * 2,
+                   'rz': regParameters[2] * 2,
                    'dx': regParameters[3],
                    'dy': regParameters[4],
                    'dz': regParameters[5]
                    }
-
-    print("-----OFFSET-----")
-    print(offset)
-    print("-----MATRIX--------")
-    print(matrix)
 
     return corrections
 
@@ -860,42 +754,3 @@ def versor_resample(registration, moving_image, fixed_image):
     resampler.Update()
 
     return resampler.GetOutput()
-
-
-def make_opt_par():
-    """Creates dictionary with default registration parameters.
-
-    Recommendations and interpretation of the different parameters
-    - Metric: Default is MS (mean squares)
-
-    - Opt range: Expected range of motion in deg and mm
-
-    - Learning rate: The initial step size in the opimiser. Too large and it will be unstable. Too small and it might not reach the minimum
-
-    - Relaxation factor: The fraction by which the step size is reduced every time the optimiser changes direction. Too small value will reduce the step size too quickly and can risk local minima. Too large and the optimiser might need too many itterations. For noisy data the optimiser might change a lot and a higher value might be good.
-    """
-    D = {'metric': 'MS',
-         'opt_range': [10, 30],
-         'learning_rate': 0.2,
-         'min_step_length': 0.001,
-         'relax_factor': 0.6}
-
-    return D
-
-
-def convert_itk_matrix(m):
-    """Create numpy matrix from itk 3x3 matrix object.
-
-    Args:
-        m (itk matrix): Input matrix
-
-    Returns:
-        np.array: Numpy 3x3 matrix
-    """
-    print(m)
-    np_m = np.ndarray([3, 3])
-    for i in range(3):
-        for j in range(3):
-            np_m[i, j] = m(i, j)
-
-    return np_m
