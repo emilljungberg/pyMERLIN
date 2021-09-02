@@ -16,6 +16,10 @@ def fibonacci(k):
         int: The kth Fibonacci number
     """
 
+    if type(k) != int:
+        raise TypeError("k needs to be an integer")
+    if k < 0:
+        raise ValueError("k needs to be positive")
     if k == 0:
         return 0
     if k == 1:

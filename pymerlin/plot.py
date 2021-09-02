@@ -353,7 +353,7 @@ def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
         rot_ax.set_xlabel('Time [s]')
         d_ax.set_xlabel('Time [s]')
     else:
-        rot_ax.set_xlabel('Interleave')
-        d_ax.set_xlabel('Interleave')
+        rot_ax.set_xlabel('Navigator')
+        d_ax.set_xlabel('Navigator')
 
     plt.tight_layout()
