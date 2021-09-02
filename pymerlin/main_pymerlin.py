@@ -111,12 +111,14 @@ class PyMerlin_parser(object):
 
     def reg(self):
         parser = argparse.ArgumentParser(description='MERLIN Registration',
-                                         usage='pymerlin reg [<args>]')
+                                         usage='pymerlin reg [<args>] [ants_pyramid arguments]')
 
         parser.add_argument("--fixed", help="Fixed image",
                             required=True, type=arg_check_h5)
         parser.add_argument("--moving", help="Moving image",
                             required=True, type=arg_check_h5)
+        parser.add_argument(
+            "--fixed_mask", help="Fixed space mask", required=False, type=arg_check_h5)
         parser.add_argument(
             "--reg", help="Registration parameters", required=False, type=str, default=None)
         parser.add_argument("--log", help="Registration history log",
@@ -125,23 +127,19 @@ class PyMerlin_parser(object):
             "--fixout", help="Name of fixed image output", required=False, type=arg_check_nii)
         parser.add_argument(
             "--moveout", help="Name of registered moving image output", required=False, type=arg_check_nii)
-        parser.add_argument("--rad", help="Radius of fixed mask",
-                            required=False, default=1.0, type=float)
-        parser.add_argument("--thr", help="Low image threshold",
-                            required=False, default=0, type=float)
         parser.add_argument("--sigma", help="List of sigmas",
-                            required=False, default=[2, 1, 0], nargs="+", type=int)
+                            required=False, default=[0], nargs="+", type=int)
         parser.add_argument("--shrink", help="Shrink factors",
-                            required=False, default=[4, 2, 1], nargs="+", type=int)
+                            required=False, default=[1], nargs="+", type=int)
         parser.add_argument("--metric", help="Image metric",
-                            required=False, default="MI")
+                            required=False, default="MS")
         parser.add_argument(
             "--verbose", help="Log level (0,1,2)", default=2, type=int)
 
         # Since we are inside the subcommand now we skip the first two
         # arguments on the command line
-        args = parser.parse_args(sys.argv[2:])
-        main_reg(args)
+        args, unknown_args = parser.parse_known_args(sys.argv[2:])
+        main_reg(args, unknown_args)
 
     def merge(self):
         parser = argparse.ArgumentParser(description='Append to registration or initialise series',
@@ -258,7 +256,7 @@ class PyMerlin_parser(object):
                             help='Comparison image')
         parser.add_argument('--kw', required=False, default=11,
                             type=int, help='Kernel width')
-        parser.add_argument('--sigma', required=False, default=0.0,
+        parser.add_argument('--sigma', required=False, default=1.5,
                             type=float, help='Sigma for Gaussian kernel')
         parser.add_argument('--mask', required=False,
                             default=None, help='Brain mask')
@@ -316,7 +314,7 @@ class PyMerlin_parser(object):
         return self.outargs
 
 
-def main_reg(args):
+def main_reg(args, unknown_args):
     if not args.reg:
         fix_base = os.path.splitext(os.path.basename(args.fixed))
         move_base = os.path.splitext(os.path.basename(args.moving))
@@ -324,19 +322,34 @@ def main_reg(args):
     else:
         reg_name = args.reg
 
+    more_args = {}
+    i = 0
+    while i < len(unknown_args):
+        k = unknown_args[i].split('--')[1]
+        val = unknown_args[i+1]
+
+        try:
+            val = float(val)
+        except ValueError:
+            continue
+
+        more_args[k] = val
+        i += 2
+
+    print(more_args)
+
     r, rout, reg_fname = ants_pyramid(fixed_image_fname=args.fixed,
                                       moving_image_fname=args.moving,
                                       moco_output_name=args.moveout,
+                                      fixed_mask_fname=args.fixed_mask,
                                       fixed_output_name=args.fixout,
                                       reg_par_name=reg_name,
                                       iteration_log_fname=args.log,
-                                      fixed_mask_radius=args.rad,
-                                      threshold=args.thr,
-                                      winsorize=None,
                                       sigmas=args.sigma,
                                       shrink=args.shrink,
                                       metric=args.metric,
-                                      verbose=args.verbose)
+                                      verbose=args.verbose,
+                                      **more_args)
 
 
 def main_thr(args):
