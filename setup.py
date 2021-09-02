@@ -31,7 +31,9 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'pymerlin=pymerlin.main_pymerlin:main',
-            'h5viewer=pymerlin.h5viewer:main'
+            'h5viewer=pymerlin.main_tools:h5viewer',
+            'nii2h5=pymerlin.main_tools:nii2h5',
+            'h52nii=pymerlin.main_tools:h52nii'
         ]
     }
 )
