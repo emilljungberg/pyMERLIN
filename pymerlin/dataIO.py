@@ -27,7 +27,7 @@ def parse_fname(fname):
     """
     bname, ext = os.path.splitext(os.path.basename(fname))
     if ext.lower() == '.nii':
-        return fname
+        return bname
     elif ext.lower() == '.gz':
         bname2, ext2 = os.path.splitext(bname)
         if ext2 == '.nii':
@@ -47,8 +47,9 @@ def arg_check_h5(fname):
     bname, ext = os.path.splitext(fname)
     if ext.lower() in ['.h5', '.hd5', '.hf5', '.hdf5']:
         return fname
-
-    return argparse.ArgumentError("{} doesn't seem to have the right file ending (HDF5 file)".format(fname))
+    else:
+        raise ValueError(
+            "{} doesn't seem to have the right file ending (HDF5 file)".format(fname))
 
 
 def arg_check_nii(fname):
@@ -179,6 +180,9 @@ def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=N
 
     # Don't assume isotropic voxels
     img.SetSpacing([float(x) for x in spacing])
+
+    # Set origin in center of the image
+    img.SetOrigin([-img_array.shape[i]/2*spacing[i] for i in range(3)])
 
     if max_image_value:
         # Rescale image intensity
