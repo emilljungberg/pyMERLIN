@@ -26,9 +26,10 @@ def calc_H(traj, D, spacing):
     dy = D['dy']/spacing[1]
     dz = D['dz']/spacing[2]
 
-    xF = traj[:, :, 0]/np.max(abs(traj[:, :, 0]))/2
-    yF = traj[:, :, 1]/np.max(abs(traj[:, :, 1]))/2
-    zF = traj[:, :, 2]/np.max(abs(traj[:, :, 2]))/2
+    # We assume that the trajectory is normalised to 1
+    xF = traj[:, :, 0]/2
+    yF = traj[:, :, 1]/2
+    zF = traj[:, :, 2]/2
 
     H = np.exp(2j*np.pi*(xF*dx + yF*dy + zF*dz))
 
@@ -77,7 +78,10 @@ def moco_single(source_h5, dest_h5, reg):
 
     logging.info("Writing info and meta data")
     f_dest.create_dataset("info", data=info)
-    f_source.copy('meta', f_dest)
+    try:
+        f_source.copy('meta', f_dest)
+    except:
+        print("No meta data")
 
     logging.info("Writing trajectory")
     traj_chunk_dims = list(traj_corr.shape)
@@ -149,7 +153,10 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
     logging.info("Writing info and meta data")
     f_dest.create_dataset("info", data=info)
-    f_source.copy('meta', f_dest)
+    try:
+        f_source.copy('meta', f_dest)
+    except:
+        print("No meta data")
 
     logging.info("Writing trajectory")
     f_dest.create_dataset("trajectory", data=traj_corr,
@@ -185,25 +192,35 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
     n_nav = len(reg_list)
 
     traj = f_source['trajectory'][:]
-    traj_corr = np.copy(traj)
+    traj_corr = np.zeros_like(traj)
 
     data = f_source['noncartesian'][:]
-    data_corr = np.copy(data)
+    data_corr = np.zeros_like(data)
 
     # We don't correct any lowres spokes
     idx0 = 0
     idx1 = int(spokes_lo)
 
+    if spokes_lo > 0:
+        data_corr[0, idx0:idx1, :, :] = data[0, idx0:idx1, :, :]
+        traj_corr[idx0:idx1, :, :] = traj[idx0:idx1, :, :]
+
     logging.info("Correcting data and trajectories")
+
     # Loop over all segments
-    for i in range(n_nav):
-        logging.info("Processing segment %d/%d" % (i+1, n_nav))
+    for iseg in range(n_nav+nseg-1):
 
-        iw = i - int(np.floor(nseg/2))
-        if iw < 0:
-            iw = 0
+        inav = iseg - int(np.floor(nseg/2))
+        if inav < 0:
+            inav = 0
+        if inav > n_nav-1:
+            inav = n_nav-1
 
-        D_reg = reg_list[iw]
+        # Match segment to navigator for recon params
+        logging.info("Processing segment %d/%d Using Nav %d" %
+                     (iseg+1, n_nav, inav))
+
+        D_reg = reg_list[inav]
 
         idx0 = idx1                   # Start where last interleave ended
         sps = int(D_reg['spi']/nseg)  # Spokes per segment
@@ -213,10 +230,14 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
         traj_int = traj[idx0:idx1, :, :]
         data_int = data[0, idx0:idx1, :, :]
 
-        print("Matmul")
         traj_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
 
         H = calc_H(traj_int, D_reg, spacing)
+        if np.isnan(H[:]).any():
+            print("H is nan!")
+            print(D_reg)
+            print(spacing)
+
         for ircv in range(np.shape(data)[-1]):
             data_corr[0, idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
 
@@ -226,8 +247,8 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
     f_dest = h5py.File(valid_dest_h5, 'w')
 
     logging.info("Writing info and meta data")
+    f_dest.create_dataset("info", data=info)
     try:
-        f_dest.create_dataset("info", data=info)
         f_source.copy('meta', f_dest)
     except:
         print("No meta data, skipping this.")
