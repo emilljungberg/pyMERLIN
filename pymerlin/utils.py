@@ -31,29 +31,86 @@ def fibonacci(k):
 def rotmat(rot_angles):
     """Calculate rotation matrix
 
+    https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
+
     Args:
-        rot_angles (array): Rotation angles (ax,ay,az)
+        rot_angles (array): Rotation angles (roll, pitch, yaw / x,y,z)
 
     Returns:
         array: 3x3 rotation matrix
     """
 
-    ax = rot_angles[0]
-    ay = rot_angles[1]
-    az = rot_angles[2]
+    alpha = rot_angles[2]
+    beta = rot_angles[1]
+    gamma = rot_angles[0]
 
-    cx = np.cos(ax)
-    cy = np.cos(ay)
-    cz = np.cos(az)
-    sx = np.sin(ax)
-    sy = np.sin(ay)
-    sz = np.sin(az)
+    ca = np.cos(alpha)
+    cb = np.cos(beta)
+    cg = np.cos(gamma)
+    sa = np.sin(alpha)
+    sb = np.sin(beta)
+    sg = np.sin(gamma)
 
-    R = np.array([[cy*cz, sx*sy*cz-cx*sz, cx*sy*cz+sx*sz],
-                  [cy*sz, sx*sy*sz+cx*cz, cx*sy*sz-sx*cz],
-                  [-sy,   sx*cy,          cx*cy]])
+    R = np.array([[ca*cb, ca*sb*sg-sa*cg, ca*sb*cg+sa*sg],
+                  [sa*cb, sa*sb*sg+ca*cg, cg*sb*sb-sg*ca],
+                  [-sb,   sg*cb,          cb*cg]])
 
     return R
+
+
+def rotmat_versor(versor):
+    """
+    Calculates rotation matrix based on a versor. If length 3, assuming only vector part and will calculate
+    4th element to make magnitude 1.
+
+    Args:
+        versor (array): 3 or 4 element versor
+
+    Returns:
+        array: 3x3 rotation matrix
+    """
+
+    if len(versor) == 4:
+        q0, q1, q2, q3 = versor
+
+    elif len(versor) == 3:
+        q1, q2, q3 = versor
+        q0 = np.sqrt(1 - q1**2 - q2**2 - q3**2)
+    else:
+        return TypeError("Versor must be of lenfth 3 or 4")
+
+    R = np.array([[1-2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3), 2*(q0*q2+q1*q3)],
+                  [2*(q1*q2+q0*q3), 1-2*(q1**2+q3**2), 2*(q2*q3-q0*q1)],
+                  [2*(q1*q3-q0*q2), 2*(q0*q1+q2*q3), q0**2-q1**2-q2**2+q3**2]])
+
+    return R
+
+
+def versor_to_euler(versor):
+    """
+    Calculates the intrinsic euler angles from a 3 or 4 element versor
+
+    Args:
+        versor (array): 3 or 4 element versor
+
+    Returns:
+        array: rotation angles (rx, ry, rz)
+    """
+
+    if len(versor) == 4:
+        q0, q1, q2, q3 = versor
+
+    elif len(versor) == 3:
+        q1, q2, q3 = versor
+        q0 = np.sqrt(1 - q1**2 - q2**2 - q3**2)
+    else:
+        return TypeError("Versor must be of lenfth 3 or 4")
+
+    rz = np.arctan2(2*(q0*q1+q2*q3), (1-2*(q1**2+q2**2)))
+    ry = np.arcsin(2*(q0*q2 - q3*q1))
+    rx = np.arctan2(2*(q0*q3+q1*q2), 1-2*(q2**2+q3**2))
+
+    return rx, ry, rz
 
 
 def parse_combreg(combreg):
@@ -65,6 +122,7 @@ def parse_combreg(combreg):
     Returns:
         dict: Parsed registration results
     """
+
     all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
     for k in all_reg.keys():
         for i in range(len(combreg)):

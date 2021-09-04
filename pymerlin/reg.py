@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from .dataIO import create_image, read_image_h5
+from .utils import versor_to_euler
 
 
 def otsu_filter(image):
@@ -171,7 +172,7 @@ def versor_watcher(reg_out, optimizer):
     """
 
     logging.debug("{:s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s} \t {:6s}".format(
-        'Itt', 'Value', 'vX [deg]', 'vY [deg]', 'vZ [deg]', 'tX [mm]', 'tY [mm]', 'tZ [mm]'))
+        'Itt', 'Value', 'vX', 'vY', 'vZ', 'tX', 'tY', 'tZ'))
 
     def opt_watcher():
         cv = optimizer.GetValue()
@@ -182,9 +183,9 @@ def versor_watcher(reg_out, optimizer):
 
         # Store logged values
         reg_out['cv'].append(cv)
-        reg_out['vX'].append(np.rad2deg(cpos[0]))
-        reg_out['vY'].append(np.rad2deg(cpos[1]))
-        reg_out['vZ'].append(np.rad2deg(cpos[2]))
+        reg_out['vX'].append(cpos[0])
+        reg_out['vY'].append(cpos[1])
+        reg_out['vZ'].append(cpos[2])
         reg_out['tX'].append(cpos[3])
         reg_out['tY'].append(cpos[4])
         reg_out['tZ'].append(cpos[5])
@@ -192,7 +193,7 @@ def versor_watcher(reg_out, optimizer):
         reg_out['lrr'].append(lrr)
 
         logging.debug("{:d} \t {:6.5f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f} \t {:6.3f}".format(
-            cit, cv, np.rad2deg(cpos[0]) * 2, np.rad2deg(cpos[1]) * 2, np.rad2deg(cpos[2]) * 2, cpos[3], cpos[4], cpos[5]))
+            cit, cv, cpos[0], cpos[1], cpos[2], cpos[3], cpos[4], cpos[5]))
 
     return opt_watcher
 
@@ -319,9 +320,9 @@ def get_versor_factors(registration):
     regParameters = registration.GetOutput().Get().GetParameters()
 
     corrections = {'R': matrix,
-                   'rx': regParameters[0] * 2,
-                   'ry': regParameters[1] * 2,
-                   'rz': regParameters[2] * 2,
+                   'vx': regParameters[0],
+                   'y': regParameters[1],
+                   'vz': regParameters[2],
                    'dx': regParameters[3],
                    'dy': regParameters[4],
                    'dz': regParameters[5]
@@ -382,26 +383,26 @@ def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0
     return optimizer
 
 
-def ants_pyramid(fixed_image_fname, moving_image_fname,
-                 moco_output_name=None, fixed_output_name=None,
-                 fixed_mask_fname=None,
-                 reg_par_name=None,
-                 iteration_log_fname=None,
-                 opt_range=[np.deg2rad(1), 10],
-                 init_angle=0,
-                 init_axis=[0, 0, 1],
-                 relax_factor=0.5,
-                 winsorize=None,
-                 threshold=None,
-                 sigmas=[0],
-                 shrink=[1],
-                 metric='MS',
-                 learning_rate=5,
-                 convergence_window_size=10,
-                 convergence_value=1E-6,
-                 min_step_length=1E-6,
-                 nit=250,
-                 verbose=2):
+def versor3D_registration(fixed_image_fname, moving_image_fname,
+                          moco_output_name=None, fixed_output_name=None,
+                          fixed_mask_fname=None,
+                          reg_par_name=None,
+                          iteration_log_fname=None,
+                          opt_range=[np.deg2rad(1), 10],
+                          init_angle=0,
+                          init_axis=[0, 0, 1],
+                          relax_factor=0.5,
+                          winsorize=None,
+                          threshold=None,
+                          sigmas=[0],
+                          shrink=[1],
+                          metric='MS',
+                          learning_rate=5,
+                          convergence_window_size=10,
+                          convergence_value=1E-6,
+                          min_step_length=1E-6,
+                          nit=250,
+                          verbose=2):
     """Multi-scale rigid body registration
 
     ITK registration framework inspired by ANTs which performs a multi-scale 3D versor registratio between two 3D volumes. The input data is provided as .h5 image files. 
@@ -577,11 +578,13 @@ def ants_pyramid(fixed_image_fname, moving_image_fname,
 
     # Correction factors
     corrections = get_versor_factors(registration)
+    rot_x, rot_y, rot_z = versor_to_euler(
+        [corrections['vx'], corrections['vy'], corrections['vz']])
     logging.info("Estimated parameters")
     logging.info("Rotation: (%.2f, %.2f, %.2f) deg" %
-                 (np.rad2deg(corrections['rx']),
-                  np.rad2deg(corrections['ry']),
-                  np.rad2deg(corrections['rz'])))
+                 (np.rad2deg(rot_x),
+                  np.rad2deg(rot_y),
+                  np.rad2deg(rot_z)))
     logging.info("Translation: (%.2f, %.2f, %.2f) mm" %
                  (corrections['dx'],
                   corrections['dy'],
