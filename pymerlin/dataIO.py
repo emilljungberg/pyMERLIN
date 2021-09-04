@@ -309,3 +309,34 @@ def make_3D(img):
         return img[:, :, :, 0]
 
     return img
+
+
+def write_kspace_h5(f_dest, noncartesian, trajectory, info, f_source=None):
+    f_dest = h5py.File(f_dest, 'w')
+
+    logging.info("Writing info and meta data")
+    f_dest.create_dataset("info", data=info)
+
+    if f_source:
+        try:
+            f_source.copy('meta', f_dest)
+        except:
+            print("No meta data")
+
+    logging.info("Writing trajectory")
+    traj_chunk_dims = list(trajectory.shape)
+    if traj_chunk_dims[0] > 1024:
+        traj_chunk_dims[0] = 1024
+
+    f_dest.create_dataset("trajectory", data=trajectory,
+                          chunks=tuple(traj_chunk_dims), compression='gzip')
+
+    logging.info("Writing k-space data")
+    data_chunk_dims = list(noncartesian.shape)
+    if data_chunk_dims[1] > 1024:
+        data_chunk_dims[1] = 1024
+    f_dest.create_dataset("noncartesian", dtype='c8', data=noncartesian,
+                          chunks=tuple(data_chunk_dims), compression='gzip')
+
+    logging.info("Closing {}".format(f_dest))
+    f_dest.close()
