@@ -36,6 +36,26 @@ def calc_H(traj, D, spacing):
     return H
 
 
+def apply_moco(data_in, traj_in, D_reg, spacing):
+    """
+    ITK versor applies the rotation and then the translation
+    Correct approach is thus to first rotate trajectory then apply
+    the corresponding phase correcttion on these coordinates
+    """
+
+    traj_corr = np.matmul(traj_in, D_reg['R'])
+    H = calc_H(traj_corr, D_reg, spacing)
+
+    if np.isnan(H[:]).any():
+        raise ValueError("H is nan")
+
+    data_corr = np.zeros_like(data_in)
+    for ircv in range(np.shape(data_in)[-1]):
+        data_corr[..., ircv] = data_in[..., ircv]*H
+
+    return data_corr, traj_corr
+
+
 def moco_single(source_h5, dest_h5, reg):
     """Corrects a radial dataset from a pickle file.
 
@@ -55,16 +75,16 @@ def moco_single(source_h5, dest_h5, reg):
     lo_scale = info['lo_scale'][0]
 
     traj = f_source['trajectory'][:]
-    traj_corr = np.copy(traj)
+    traj_corr = np.zeros_like(traj)
 
     data = f_source['noncartesian'][:]
     data_corr = np.zeros_like(data)
 
     logging.info("Correcting data and trajectories")
-    traj_corr[:, :, :] = np.matmul(traj, reg['R'])
+    traj_corr = np.matmul(traj, reg['R'])
 
-    H_high = calc_H(traj[spokes_lo:, :, :], reg, spacing)
-    H_low = calc_H(traj[0:spokes_lo, :, :], reg, spacing/lo_scale)
+    H_high = calc_H(traj_corr[spokes_lo:, :, :], reg, spacing)
+    H_low = calc_H(traj_corr[0:spokes_lo, :, :], reg, spacing/lo_scale)
 
     for ircv in range(np.shape(data)[-1]):
         data_corr[0, spokes_lo:, :, ircv] = data[0, spokes_lo:, :, ircv]*H_high
@@ -74,32 +94,9 @@ def moco_single(source_h5, dest_h5, reg):
     # Write data to destination file
     valid_dest_h5 = check_filename(dest_h5)
     logging.info("Opening destination file: %s" % valid_dest_h5)
-    f_dest = h5py.File(valid_dest_h5, 'w')
-
-    logging.info("Writing info and meta data")
-    f_dest.create_dataset("info", data=info)
-    try:
-        f_source.copy('meta', f_dest)
-    except:
-        print("No meta data")
-
-    logging.info("Writing trajectory")
-    traj_chunk_dims = list(traj_corr.shape)
-    if traj_chunk_dims[0] > 1024:
-        traj_chunk_dims[0] = 1024
-    f_dest.create_dataset("trajectory", data=traj_corr,
-                          chunks=tuple(traj_chunk_dims), compression='gzip')
-
-    logging.info("Writing k-space data")
-    data_chunk_dims = list(data_corr.shape)
-    if data_chunk_dims[1] > 1024:
-        data_chunk_dims[1] = 1024
-    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr,
-                          chunks=tuple(data_chunk_dims), compression='gzip')
-
-    logging.info("Closing all files")
+    write_kspace_h5(valid_dest_h5, data_corr,
+                    traj_corr, info, f_source=f_source)
     f_source.close()
-    f_dest.close()
 
 
 def moco_combined(source_h5, dest_h5, reg_list):
@@ -122,53 +119,39 @@ def moco_combined(source_h5, dest_h5, reg_list):
     n_interleaves = len(reg_list)
 
     traj = f_source['trajectory'][:]
-    traj_corr = np.copy(traj)
+    traj_corr = np.zeros_like(traj)
 
-    data = f_source['noncartesian'][0, :, :, :]
-    data_corr = np.copy(data)
+    data = f_source['noncartesian'][:]
+    data_corr = np.zeros_like(data)
 
     # We don't correct any lowres spokes
     idx0 = 0
     idx1 = int(spokes_lo)
 
+    if spokes_lo > 0:
+        data_corr[0, idx0:idx1, :, :] = data[0, idx0:idx1, :, :]
+        traj_corr[idx0:idx1, :, :] = traj[idx0:idx1, :, :]
+
     logging.info("Correcting data and trajectories")
     for (i, D_reg) in enumerate(reg_list):
         logging.info("Processing interleave %d/%d" % (i+1, n_interleaves))
-        idx0 = idx1         # Start where last interleave ended
+        idx0 = idx1
         idx1 = idx0 + D_reg['spi']
 
-        traj_int = traj[idx0:idx1, :, :]
-        data_int = data[idx0:idx1, :, :]
+        tc, dc = apply_moco(data_in=data[0, idx0:idx1, :, :], traj_in=traj[idx0:idx1, :, :],
+                            D_reg=D_reg, spacing=spacing)
 
-        traj_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
-
-        H = calc_H(traj_int, D_reg, spacing)
-        for ircv in range(np.shape(data)[-1]):
-            data_corr[idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
+        data_corr[0, idx0:idx1, ...] = dc
+        traj_corr[idx0:idx1, ...] = tc
 
     # Write data to destination file
     valid_dest_h5 = check_filename(dest_h5)
     logging.info("Opening destination file: %s" % valid_dest_h5)
-    f_dest = h5py.File(valid_dest_h5, 'w')
-
-    logging.info("Writing info and meta data")
-    f_dest.create_dataset("info", data=info)
-    try:
-        f_source.copy('meta', f_dest)
-    except:
-        print("No meta data")
-
-    logging.info("Writing trajectory")
-    f_dest.create_dataset("trajectory", data=traj_corr,
-                          chunks=np.shape(traj_corr), compression='gzip')
-
-    logging.info("Writing k-space data")
-    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr[np.newaxis, ...],
-                          chunks=np.shape(data_corr), compression='gzip')
+    write_kspace_h5(valid_dest_h5, data_corr,
+                    traj_corr, info, f_source=f_source)
 
     logging.info("Closing all files")
     f_source.close()
-    f_dest.close()
 
 
 def moco_sw(source_h5, dest_h5, reg_list, nseg):
@@ -227,46 +210,17 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
         idx1 = idx0 + sps
         print("i0:i1: {}:{}".format(idx0, idx1))
 
-        traj_int = traj[idx0:idx1, :, :]
-        data_int = data[0, idx0:idx1, :, :]
+        dc, tc = apply_moco(data_in=data[0, idx0:idx1, :, :], traj_in=traj[idx0:idx1, :, :],
+                            D_reg=D_reg, spacing=spacing)
 
-        traj_corr[idx0:idx1, :, :] = np.matmul(traj_int, D_reg['R'])
-
-        H = calc_H(traj_int, D_reg, spacing)
-        if np.isnan(H[:]).any():
-            print("H is nan!")
-            print(D_reg)
-            print(spacing)
-
-        for ircv in range(np.shape(data)[-1]):
-            data_corr[0, idx0:idx1, :, ircv] = data_int[:, :, ircv]*H
+        data_corr[0, idx0:idx1, ...] = dc
+        traj_corr[idx0:idx1, ...] = tc
 
     # Write data to destination file
     valid_dest_h5 = check_filename(dest_h5)
     logging.info("Opening destination file: %s" % valid_dest_h5)
-    f_dest = h5py.File(valid_dest_h5, 'w')
-
-    logging.info("Writing info and meta data")
-    f_dest.create_dataset("info", data=info)
-    try:
-        f_source.copy('meta', f_dest)
-    except:
-        print("No meta data, skipping this.")
-
-    logging.info("Writing trajectory")
-    traj_chunk_dims = list(traj_corr.shape)
-    if traj_chunk_dims[0] > 1024:
-        traj_chunk_dims[0] = 1024
-    f_dest.create_dataset("trajectory", data=traj_corr,
-                          chunks=tuple(traj_chunk_dims), compression='gzip')
-
-    logging.info("Writing k-space data")
-    data_chunk_dims = list(data_corr.shape)
-    if data_chunk_dims[1] > 1024:
-        data_chunk_dims[1] = 1024
-    f_dest.create_dataset("noncartesian", dtype='c8', data=data_corr,
-                          chunks=tuple(data_chunk_dims), compression='gzip')
+    write_kspace_h5(valid_dest_h5, data_corr,
+                    traj_corr, info, f_source=f_source)
 
     logging.info("Closing all files")
     f_source.close()
-    f_dest.close()
