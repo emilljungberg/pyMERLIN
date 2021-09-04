@@ -173,13 +173,14 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
     return I3
 
 
-def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, max_d=None, max_r=None):
+def gif_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tnav=None, t0=0, max_d=None, max_r=None):
     """GIF animation of registration results
 
     Args:
         reg_out (str): File name to pickle file
-        images (np.array): Array of images to display
+        images (np.array): Array of images to display (nx,ny,nz,nt)
         out_name (str, optional): Output. Defaults to 'animation.gif'.
+        slice_pos (array, optional): Slice positions. Defaults to center slices.
         tnav (float, optional): Navigator duration to display x-axis with time. Defaults to None.
         t0 (int, optional): Starting time. Defaults to 0.
         max_d (float, optional): Limit of translation plot. Defaults to None.
@@ -190,7 +191,7 @@ def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, ma
     """
 
     combreg = pickle.load(open(reg_out, 'rb'))
-    num_navigators = len(images)
+    num_navigators = images.shape[3]
 
     if len(combreg) != num_navigators:
         raise TypeError
@@ -211,57 +212,60 @@ def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, ma
         plot_xlabel = 'Navigator'
         t = np.arange(num_navigators)
 
-    # Translations
     if not max_d:
-        max_d = np.ceil(np.max([all_reg['dx'], all_reg['dy'], all_reg['dz']]))
+        max_d = np.ceil(
+            np.max(np.abs([all_reg['dx'], all_reg['dy'], all_reg['dz']])))
     d_axis = [0, max(t), -max_d, max_d]
 
     if not max_r:
         max_r = np.ceil(np.rad2deg(
-            np.max([all_reg['rx'], all_reg['ry'], all_reg['rz']])))
+            np.max(np.abs([all_reg['rx'], all_reg['ry'], all_reg['rz']]))))
     r_axis = [0, max(t), -max_r, max_r]
+
+    if slice_pos is None:
+        nx, ny, nz, nt = images.shape
+        slice_pos = [int(nx/2), int(ny/2), int(nz/2)]
 
     use_raster = True
     raster_order = -10
 
-    def my_plot(img_idx):
-        fig = plt.figure(constrained_layout=True, figsize=(12, 4))
+    def plot_frame(img_idx):
+        fig = plt.figure(constrained_layout=True, figsize=(12, 8))
         canvas = FigureCanvasAgg(fig)
-        spec = gridspec.GridSpec(ncols=3, nrows=3, figure=fig)
+        spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
         axes = {}
 
+        d_ax = fig.add_subplot(spec[0, 0], rasterized=use_raster)
+        r_ax = fig.add_subplot(spec[0, 1], rasterized=use_raster)
+
         for (i, ax) in enumerate(['x', 'y', 'z']):
-            # Translation
-            axes['d%s' % ax] = fig.add_subplot(
-                spec[i, 0], rasterized=use_raster)
-            plt.plot(t, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
-            if i == 0:
-                plt.title('Translation')
-            plt.ylabel(r'$\Delta_%s$ [mm]' % ax)
-            plt.plot([t[img_idx], t[img_idx]], [-max_d, max_d], '--k')
+            d_ax.plot(t, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
+            d_ax.plot([t[img_idx], t[img_idx]], [-max_d, max_d], '--k')
             plt.gca().set_rasterization_zorder(raster_order)
-            if i == 2:
-                plt.xlabel(plot_xlabel)
-            plt.grid()
-            plt.axis(d_axis)
 
-            # Rotation
-            axes['r%s' % ax] = fig.add_subplot(
-                spec[i, 1], rasterized=use_raster)
-            plt.plot(t, np.rad2deg(
+            r_ax.plot(t, np.rad2deg(
                 all_reg['r%s' % ax]), linewidth=3, color='C%d' % i)
-            if i == 0:
-                plt.title('Rotation [deg]')
-            plt.ylabel(r'$\alpha_%s$ [deg]' % ax)
-            plt.plot([t[img_idx], t[img_idx]], [-max_r, max_r], '--k')
+            r_ax.plot([t[img_idx], t[img_idx]], [-max_r, max_r], '--k')
             plt.gca().set_rasterization_zorder(raster_order)
-            if i == 2:
-                plt.xlabel(plot_xlabel)
-            plt.grid()
-            plt.axis(r_axis)
 
-        axes['img'] = fig.add_subplot(spec[0:3, 2], rasterized=use_raster)
-        plt.imshow(images[img_idx], cmap='gray')
+        d_ax.set_title('Translation')
+        d_ax.set_ylabel(r'$\Delta_%s$ [mm]' % ax)
+        d_ax.set_xlabel(plot_xlabel)
+        d_ax.axis(d_axis)
+        d_ax.grid()
+
+        r_ax.set_title('Rotation')
+        r_ax.set_ylabel(r'$\alpha_%s$ [deg]' % ax)
+        r_ax.set_xlabel(plot_xlabel)
+        r_ax.axis(r_axis)
+        r_ax.grid()
+
+        axes['img'] = fig.add_subplot(spec[1:3, 0:2], rasterized=use_raster)
+        img_view = np.concatenate([
+            np.rot90(images[slice_pos[0], :, :, img_idx], -1),
+            np.rot90(images[:, slice_pos[1], :, img_idx], -1),
+            np.rot90(images[:, :, slice_pos[2], img_idx], -1)], axis=1)
+        plt.imshow(img_view, cmap='gray')
         plt.title('Navigator (%d/%d)' % (img_idx+1, num_navigators))
         plt.axis('off')
         plt.gca().set_rasterization_zorder(raster_order)
@@ -273,7 +277,7 @@ def gif_animation(reg_out, images, out_name='animation.gif', tnav=None, t0=0, ma
     max_v = 0
     for i in range(num_navigators):
         print("Processing frame: %d/%d" % (i+1, num_navigators))
-        fig, canvas = my_plot(i)
+        fig, canvas = plot_frame(i)
         canvas.draw()
         buf = canvas.buffer_rgba()
         X = np.asarray(buf)
