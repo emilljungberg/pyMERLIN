@@ -16,3 +16,8 @@ __pycache__
 ehthumbs.db
 Icon?
 Thumbs.db
+
+*.nii
+*.p
+*.h5
+*.gif

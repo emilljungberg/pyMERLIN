@@ -11,3 +11,4 @@ shutil
 SimpleITK
 scikit-image
 xmltodict
+imageio-ffmpeg
