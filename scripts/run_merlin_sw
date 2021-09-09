@@ -22,6 +22,7 @@ usage() {
     --gap           | Set gap for Zinfandel
     --step          | Step size for sliding window
     --ref           | Reference navigator
+    --metric        | Metric (MS/MI), def MS
     --batchitk      | Batch size for parallel ITK
     --batchries     | Batch size for parallel riesling
     --threaditk     | Number of threads for ITK
@@ -70,6 +71,7 @@ gap=
 spoke_step=
 tukey=
 ref_nav_num=0
+metric=MS
 batch_itk=1
 batch_riesling=1
 threads_itk=
@@ -117,6 +119,10 @@ while [ "$1" != "" ]; do
     --ref)
         shift
         ref_nav_num=$1
+        ;;
+    --metric)
+        shift
+        metric=$1
         ;;
     --step)
         shift
@@ -178,8 +184,8 @@ if [[ $verbose -eq 1 ]]; then
     riesling_verbose="-v"
 fi
 
-if [ $threads_itk ]; then
-    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS $threads_itk
+if [[ $threads_itk ]]; then
+    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=$threads_itk
 fi
 
 # Parse input file
@@ -252,8 +258,8 @@ if [[ ! -d $nav_folder ]]; then
         out_file=${nav_folder}/${input_basename}-nav${i}
 
         echolog "Reconstructing $int_file"
-        options="--sense=${input_basename}-waspi-sense.h5 --kb --sdc=pipe --mag --fov=$fov 
-                --max_its=$cg_its --out=$out_file"
+        options="--sense=${input_basename}-waspi-sense.h5 --kb --fast-grid --sdc=pipe --mag --fov=$fov
+        --max_its=$cg_its --out=$out_file"
         if [ $threads_riesling ]; then
             options="${options} --nthreads=${threads_riesling}"
         fi
@@ -266,6 +272,17 @@ fi
 wait
 echolog "Step 2 - Done!"
 
+# Step 2.1 - Make brain mask for navigator registration
+bet_name=${input_basename}_refnav_bet
+if [[ ! -f ${bet_name}_mask.nii.gz ]]; then
+    echolog "Making brain mask for reference navigator"
+    h52nii.py ${nav_folder}/${input_basename}-nav${ref_nav_num}-cg.h5 --out ${input_basename}-nav${ref_nav_num}-cg.nii.gz
+    hd-bet -i ${input_basename}-nav${ref_nav_num}-cg.nii.gz -device cpu -mode fast -tta 0 -o $bet_name
+    fslmaths ${bet_name}_mask.nii.gz -dilM -dilM ${bet_name}_mask_dil
+    nii2h5 ${bet_name}_mask_dil.nii.gz --out ${bet_name}_mask_dil.h5
+    rm ${input_basename}-nav${ref_nav_num}-cg.nii.gz ${bet_name}_mask_dil.nii.gz
+fi
+
 # Step 3 - Registering navigators
 echolog "[Step 3] Registering navigators"
 reg_folder="registrations"
@@ -275,6 +292,7 @@ all_reg_obj=all_reg_param.p
 if [[ ! -d $reg_folder ]]; then
     mkdir $reg_folder
     ref_nav=${nav_folder}/${input_basename}-nav${ref_nav_num}-cg.h5
+    brain_mask=${bet_name}_mask_dil.h5
 
     # Estimate image threshold from reference navigator if not set
     if [[ -z $nav_thr ]]; then
@@ -295,26 +313,26 @@ if [[ ! -d $reg_folder ]]; then
         logname=${reg_folder}/log_nav${ref_name}_2_nav${i}.p
 
         # Run registration and merge registration objects
-        pymerlin reg --fixed=$ref_nav --moving=$move_nav --thr=$nav_thr --verbose=0 --reg=$regname --log=$logname --metric=MS &
+        pymerlin reg --fixed=$ref_nav --moving=$move_nav --verbose=0 --reg=$regname --log=$logname --fixed_mask=$brain_mask &
     done
     echolog "Step 3 - Done!"
-
 else
-
     echolog "$reg_folder folder already exists, skipping this step."
 fi
 wait
 
 # Merge all registrations
-reglist=""
-for ((i = 1; i < $num_interleaves; i++)); do
-    regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p
-    reglist="${reglist} $regname"
-done
-pymerlin merge --reg=${all_reg_obj} --spi=$nspokes --verbose=2
-pymerlin merge --reg ${all_reg_obj} --input $reglist --spi $nspokes --verbose 2
-
-# exit
+if [[ ! -f "all_reg_param.p" ]]; then
+    reglist=""
+    for ((i = 1; i < $num_interleaves; i++)); do
+        regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p
+        reglist="${reglist} $regname"
+    done
+    pymerlin merge --reg=${all_reg_obj} --spi=$nspokes --verbose=2
+    pymerlin merge --reg ${all_reg_obj} --input $reglist --spi $nspokes --verbose 2
+else
+    echo log "all_reg_param.p already exists. Skiping this step"
+fi
 
 # Step 4 - Perform motion correction
 echolog "[Step 4] Performing motion correction"
