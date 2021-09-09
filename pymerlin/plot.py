@@ -223,9 +223,13 @@ def reg_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
             np.max(np.abs([all_reg['rx'], all_reg['ry'], all_reg['rz']]))))
     r_axis = [0, max(t), -max_r, max_r]
 
-    if slice_pos is None:
-        nx, ny, nz, nt = images.shape
-        slice_pos = [int(nx/2), int(ny/2), int(nz/2)]
+    nx, ny, nz, _ = images.shape
+    if slice_pos[0] == None:
+        slice_pos[0] = int(nx/2)
+    if slice_pos[1] == None:
+        slice_pos[1] = int(ny/2)
+    if slice_pos[2] == None:
+        slice_pos[2] = int(nz/2)
 
     use_raster = True
     raster_order = -10
