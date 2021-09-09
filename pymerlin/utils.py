@@ -124,8 +124,14 @@ def parse_combreg(combreg):
     """
 
     all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
-    for k in all_reg.keys():
-        for i in range(len(combreg)):
+    for i in range(len(combreg)):
+        rx, ry, rz = versor_to_euler(
+            [combreg[i]['vx'], combreg[i]['vy'], combreg[i]['vz']])
+        all_reg['rx'].append(rx)
+        all_reg['ry'].append(ry)
+        all_reg['rz'].append(rz)
+
+        for k in ['dx', 'dy', 'dz']:
             all_reg[k].append(combreg[i][k])
 
     return all_reg
