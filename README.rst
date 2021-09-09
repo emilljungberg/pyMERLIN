@@ -2,7 +2,7 @@ MERLIN
 ========================
 
 .. image:: https://img.shields.io/badge/License-MIT-green.svg
-	:target: https://opensource.org/licenses/BSD-3-Clause
+	:target: https://opensource.org/licenses/MIT
 
 
 MERLIN is a method for Motion Estimation Retrospective correction Leveraging Interleaved Navigators. This repository contains python code (in ``pymerlin``) for performing motion correction on suitable MRI data. The example pipelines in ``pymerlin`` are specifically designed to be used with 3D radial, ZTE, acquisitions.
@@ -16,7 +16,11 @@ Install the python tools for ``pymerlin`` with ``pip`` by cloning this repositor
 
 Dependencies
 -----------------
-Besides the python dependencies listed in ``pymerlin/requirements.txt``, MERLIN is designed to be used with the 3D non-cartesian reconstruction toolbox `riesling <https://github.com/spinicist/riesling>`_. 
+Besides the python dependencies listed in ``pymerlin/requirements.txt``, MERLIN has the following dependencies:
+
+- `riesling <https://github.com/spinicist/riesling>`_ 3D non-cartesian reconstruction toolbox.
+- `HD-BET <https://github.com/NeuroAI-HD/HD-BET>`_ for efficient brain extraction
+- `FSL <https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/>`_ for various processing
 
 Usage
 ----------------

@@ -70,6 +70,22 @@ def create_info(matrix, voxel_size, read_points, read_gap, spokes_hi, spokes_lo,
 
 
 def nii2h5():
+    """
+    Converts a nifti file to riesling format .h5 image file
+
+    .. code:: text
+
+        usage: nii2h5 niifile
+
+        nii2h5 converts from nii to h5
+
+        positional arguments:
+        input       Input nii image
+
+        optional arguments:
+        -h, --help  show this help message and exit
+        --out OUT   Output h5 image
+    """
     parser = argparse.ArgumentParser(description='nii2h5 converts from nii to h5',
                                      usage='nii2h5 niifile')
 
@@ -109,6 +125,22 @@ def nii2h5():
 
 
 def h52nii():
+    """
+    Converts riesling image .h5 file to nifti. 
+
+    .. code:: text
+
+        usage: h52nii h5image
+
+        h52nii converts from h5 to nii
+
+        positional arguments:
+        input       Input h5 image
+
+        optional arguments:
+        -h, --help  show this help message and exit
+        --out OUT   Output image
+    """
     parser = argparse.ArgumentParser(description='h52nii converts from h5 to nii',
                                      usage='h52nii h5image')
 
@@ -148,6 +180,21 @@ def h52nii():
 
 
 def h5viewer():
+    """
+    Simple static 3-plane viewer of .h5 image data. Will read .h5 files in the riesling format, i.e. with a dataset named ``image``.
+
+    .. code:: text
+
+        usage: h5viewer file.h5
+
+        h5viewer
+
+        positional arguments:
+        H5          File input
+
+        optional arguments:
+        -h, --help  show this help message and exit
+    """
     parser = argparse.ArgumentParser(
         description="h5viewer", usage='h5viewer file.h5')
     parser.add_argument("h5file", metavar="H5", help="File input", type=str)

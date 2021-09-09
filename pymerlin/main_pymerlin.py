@@ -9,18 +9,18 @@ The executable works like the git command with subcommands.
 
     usage: pymerlin <command> [<args>]
 
-        Available commands are:
-            reg         Register data
-            merge       Merge registration into series
-            moco        Run moco
-            report      View report of data
-            metric      Image metric analysis
-            view        View h5 file
-            gif         Navigator and registration animation
-            ssim        Calculate Structural Similarity Index Measure
-            aes         Calculate Average Edge Strength
-            nrmse       Calculate Normalised Root Mean Squared Error
-            tukey       Applies Tukey filter to radial k-space data
+    Available commands are:
+        reg         Register data
+        merge       Merge registration into series
+        moco        Run moco
+        report      View report of data
+        metric      Image metric analysis
+        view        View h5 file
+        animation   Navigator and registration animation
+        ssim        Calculate Structural Similarity Index Measure
+        aes         Calculate Average Edge Strength
+        nrmse       Calculate Normalised Root Mean Squared Error
+        tukey       Applies Tukey filter to radial k-space data
 
 To get more help for a specific command add ``-h``.
 

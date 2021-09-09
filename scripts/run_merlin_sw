@@ -6,7 +6,7 @@
 
 usage() {
     cat <<EOF
-    usage: bash run_merlin -i input_file -n spokes_per_int
+    usage: bash run_merlin_sw -i input_file -n spokes_per_int
 
     Required arguments
     -i      | --input       
