@@ -41,4 +41,3 @@ Tools for the registration framework
     pymerlin.reg.get_versor_factors
     pymerlin.reg.setup_optimizer
     pymerlin.reg.versor_resample
-    pymerlin.reg.make_opt_par

@@ -11,8 +11,14 @@ pymerlin
 h5viewer
 -------------------
 .. automodule::
-    pymerlin.h5viewer
+    pymerlin.main_tools.h5viewer
 
 h52nii
 -------------------
-To be added
+.. automodule::
+    pymerlin.main_tools.h52nii
+
+nii2h5
+---------------------
+.. automodule::
+    pymerlin.main_tools.nii2h5

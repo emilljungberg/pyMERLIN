@@ -10,8 +10,3 @@ pyMERLIN is a toolbox for doing motion correction of MERLIN acquisitions. It wor
 5. Reconstruct the final motion corrected image (RIESLING)
 
 pyMERLIN is intended to make this into a fully-fledged integrated framework. The pipeline to do all five steps at once is not yet implemented.
-
-.. image:: MERLIN_navigators.gif
-    :width: 600
-    :alt: MERLIN moco example
-    :align: center
