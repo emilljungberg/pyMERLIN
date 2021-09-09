@@ -51,6 +51,7 @@ To get more help for a specific command add ``-h``.
 
 """
 
+from builtins import ValueError
 import argparse
 import logging
 import os
@@ -66,8 +67,8 @@ from .dataIO import (arg_check_h5, arg_check_nii, make_3D, parse_fname,
                      read_image_h5)
 from .iq import aes, nrmse, ssim, gradient_entropy
 from .moco import moco_combined, moco_single, moco_sw
-from .plot import gif_animation, report_plot
-from .reg import ants_pyramid, histogram_threshold_estimator
+from .plot import reg_animation, report_plot
+from .reg import versor3D_registration, histogram_threshold_estimator
 from .utils import make_tukey
 
 
@@ -89,7 +90,7 @@ class PyMerlin_parser(object):
         report      View report of data
         metric      Image metric analysis
         view        View h5 file
-        gif         Navigator and registration animation
+        animation   Navigator and registration animation
         ssim        Calculate Structural Similarity Index Measure
         aes         Calculate Average Edge Strength
         nrmse       Calculate Normalised Root Mean Squared Error
@@ -111,7 +112,7 @@ class PyMerlin_parser(object):
 
     def reg(self):
         parser = argparse.ArgumentParser(description='MERLIN Registration',
-                                         usage='pymerlin reg [<args>] [ants_pyramid arguments]')
+                                         usage='pymerlin reg [<args>] [versor3D_registration arguments]')
 
         parser.add_argument("--fixed", help="Fixed image",
                             required=True, type=arg_check_h5)
@@ -221,7 +222,7 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_view(args)
 
-    def gif(self):
+    def animation(self):
         parser = argparse.ArgumentParser(
             description="Make animation from navigator and reg results", usage='pymerlin gif [<args>]')
         parser.add_argument("--reg", help="Combined registration object",
@@ -229,11 +230,13 @@ class PyMerlin_parser(object):
         parser.add_argument("--nav", help="Navigator folder", required=True)
         parser.add_argument("--out", help="Output gif name",
                             required=False, default="reg_animation.gif")
-        parser.add_argument("--axis", help="Slice axis (x,y,z)",
-                            required=False, default='z')
         parser.add_argument(
-            "--slice", help="Slice to plot (def middle)", required=False, default=None)
-        parser.add_argument("--rot", help="Rotations to slice",
+            "-x", help="Slice x, def middle)", required=False, default=None, type=int)
+        parser.add_argument(
+            "-y", help="Slice y, def middle)", required=False, default=None, type=int)
+        parser.add_argument(
+            "-z", help="Slice z, def middle)", required=False, default=None, type=int)
+        parser.add_argument("--rot", help="Rotations to slices",
                             required=False, default=0, type=int)
         parser.add_argument(
             "--navtr", help="Navigator duration (s)", required=False, type=float)
@@ -243,9 +246,11 @@ class PyMerlin_parser(object):
             "--maxd", help="Max y-range translation", required=False, default=None, type=float)
         parser.add_argument(
             "--maxr", help="Max y-range rotation", required=False, default=None, type=float)
+        parser.add_argument("--vmax", help="Max display rnage normalised to max image intensity",
+                            required=False, default=1, type=float)
 
         args = parser.parse_args(sys.argv[2:])
-        main_gif(args)
+        main_animation(args)
 
     def ssim(self):
         parser = argparse.ArgumentParser(
@@ -338,18 +343,18 @@ def main_reg(args, unknown_args):
 
     print(more_args)
 
-    r, rout, reg_fname = ants_pyramid(fixed_image_fname=args.fixed,
-                                      moving_image_fname=args.moving,
-                                      moco_output_name=args.moveout,
-                                      fixed_mask_fname=args.fixed_mask,
-                                      fixed_output_name=args.fixout,
-                                      reg_par_name=reg_name,
-                                      iteration_log_fname=args.log,
-                                      sigmas=args.sigma,
-                                      shrink=args.shrink,
-                                      metric=args.metric,
-                                      verbose=args.verbose,
-                                      **more_args)
+    r, rout, reg_fname = versor3D_registration(fixed_image_fname=args.fixed,
+                                               moving_image_fname=args.moving,
+                                               moco_output_name=args.moveout,
+                                               fixed_mask_fname=args.fixed_mask,
+                                               fixed_output_name=args.fixout,
+                                               reg_par_name=reg_name,
+                                               iteration_log_fname=args.log,
+                                               sigmas=args.sigma,
+                                               shrink=args.shrink,
+                                               metric=args.metric,
+                                               verbose=args.verbose,
+                                               **more_args)
 
 
 def main_thr(args):
@@ -403,9 +408,9 @@ def main_merge(args):
             raise Exception("Cannot overwrite file")
 
         D = {'R': np.eye(3),
-             'rx': 0,
-             'ry': 0,
-             'rz': 0,
+             'vx': 0,
+             'vy': 0,
+             'vz': 0,
              'dx': 0,
              'dy': 0,
              'dz': 0,
@@ -466,8 +471,7 @@ def main_metric(args):
     print(GE)
 
 
-def main_gif(args):
-
+def main_animation(args):
     nav_dir = args.nav
     files = os.listdir(nav_dir)
     fbase = ''
@@ -479,32 +483,21 @@ def main_gif(args):
     file_tmpl = os.path.join(nav_dir, fbase[0] + '-nav%d-' + fbase[1])
     num_files = len(files)
 
-    ax = args.axis
-    nrot = int(args.rot)
-    slice_idx = args.slice
-    slice_ax = {'x': 0, 'y': 1, 'z': 2}
-
-    images = []
+    images = None
+    print("Reading navigator images")
     for i in range(num_files):
-        img, spacing = read_image_h5(file_tmpl % i, vol=0)
+        img, _ = read_image_h5(file_tmpl % i, vol=0)
 
-        if not slice_idx:
-            img_size = img.shape
-            slice_idx = img_size[slice_ax[ax]]/2
+        if images is None:
+            nx, ny, nz = img.shape
+            images = np.zeros((nx, ny, nz, num_files))
 
-        images.append(
-            np.rot90(abs(np.take(img, int(slice_idx), axis=slice_ax[ax])), nrot))
+        images[:, :, :, i] = abs(img)
 
     # Check filename
     out_name = args.out
-    fname, ext = os.path.splitext(out_name)
-    if ext != '.gif':
-        print("Warning: output extension is not .gif")
-        out_name = fname + '.gif'
-        print("Setting output name to: {}".format(out_name))
-
-    gif_animation(args.reg, images, out_name=out_name,
-                  tnav=args.navtr, t0=0, max_d=args.maxd, max_r=args.maxr)
+    reg_animation(args.reg, images, out_name=out_name,
+                  tnav=args.navtr, t0=0, max_d=args.maxd, max_r=args.maxr, vmax=args.vmax, slice_pos=[args.x, args.y, args.z], nrot=args.rot)
 
 
 def main_ssim(args):

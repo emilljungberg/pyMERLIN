@@ -3,6 +3,8 @@
 Plotting tools for 3D and 4D data.
 """
 
+from builtins import ValueError
+import os
 import pickle
 import warnings
 
@@ -12,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from tqdm import tqdm
 
 from .utils import parse_combreg
 
@@ -173,18 +176,19 @@ def imshow3(I, ncol=None, nrow=None, cmap='gray', vmin=None, vmax=None, order='c
     return I3
 
 
-def gif_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tnav=None, t0=0, max_d=None, max_r=None):
-    """GIF animation of registration results
+def reg_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tnav=None, t0=0, max_d=None, max_r=None, vmax=1, nrot=0):
+    """Animation of registration results
 
     Args:
         reg_out (str): File name to pickle file
         images (np.array): Array of images to display (nx,ny,nz,nt)
-        out_name (str, optional): Output. Defaults to 'animation.gif'.
+        out_name (str, optional): Output suffix .gif or .mp4. Defaults to 'animation.gif'. 
         slice_pos (array, optional): Slice positions. Defaults to center slices.
         tnav (float, optional): Navigator duration to display x-axis with time. Defaults to None.
         t0 (int, optional): Starting time. Defaults to 0.
         max_d (float, optional): Limit of translation plot. Defaults to None.
         max_r (float, optional): Limit of translation plot. Defaults to None.
+        vmax (float, optional): Maximum display range (0-1). Defaults to 1
 
     Raises:
         TypeError: If number of navigator images in `images` is not the same as number of registration objects in pickle file.
@@ -196,10 +200,7 @@ def gif_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
     if len(combreg) != num_navigators:
         raise TypeError
 
-    all_reg = {'rx': [], 'ry': [], 'rz': [], 'dx': [], 'dy': [], 'dz': []}
-    for k in all_reg.keys():
-        for i in range(len(combreg)):
-            all_reg[k].append(combreg[i][k])
+    all_reg = parse_combreg(combreg)
 
     plt.style.use('default')
     plt.rcParams.update({'font.size': 14})
@@ -228,6 +229,8 @@ def gif_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
 
     use_raster = True
     raster_order = -10
+
+    max_img = np.max(abs(images[:]))
 
     def plot_frame(img_idx):
         fig = plt.figure(constrained_layout=True, figsize=(12, 8))
@@ -262,37 +265,55 @@ def gif_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
 
         axes['img'] = fig.add_subplot(spec[1:3, 0:2], rasterized=use_raster)
         img_view = np.concatenate([
-            np.rot90(images[slice_pos[0], :, :, img_idx], -1),
-            np.rot90(images[:, slice_pos[1], :, img_idx], -1),
-            np.rot90(images[:, :, slice_pos[2], img_idx], -1)], axis=1)
-        plt.imshow(img_view, cmap='gray')
+            np.rot90(images[slice_pos[0], :, :, img_idx], nrot),
+            np.rot90(images[:, slice_pos[1], :, img_idx], nrot),
+            np.rot90(images[:, :, slice_pos[2], img_idx], nrot)], axis=1)
+        plt.imshow(img_view/max_img*255, cmap='gray', vmin=0, vmax=vmax*255)
         plt.title('Navigator (%d/%d)' % (img_idx+1, num_navigators))
         plt.axis('off')
         plt.gca().set_rasterization_zorder(raster_order)
 
         return (fig, canvas)
 
+    # Determine output type
+    suffix = os.path.splitext(os.path.basename(out_name))[-1]
+    out_type = None
+    if suffix == '.gif':
+        out_type = 'gif'
+    elif suffix == '.mp4':
+        out_type = 'mp4'
+    else:
+        raise ValueError("Output name must be .gif or .mp4")
+
     # Produce the frames
-    gif_frames = []
-    max_v = 0
-    for i in range(num_navigators):
-        print("Processing frame: %d/%d" % (i+1, num_navigators))
+    frames = []
+
+    if out_type == 'mp4':
+        writer = imageio.get_writer(
+            out_name, format='FFMPEG', mode='I', fps=10)
+
+    print("Processing frames")
+    for i in tqdm(range(num_navigators)):
         fig, canvas = plot_frame(i)
         canvas.draw()
         buf = canvas.buffer_rgba()
-        X = np.asarray(buf)
-        if np.amax(X) > max_v:
-            max_v = np.amax(X)
-        gif_frames.append(X)
+        X = np.asarray(buf, dtype=np.uint8)
+        if out_type == 'mp4':
+            writer.append_data(X)
+        else:
+            frames.append(X)
         plt.close(fig)
 
     # Scale data
-    uint8_frames = []
-    for i in range(num_navigators):
-        uint8_frames.append(np.array(gif_frames[i]/max_v*255, dtype=np.uint8))
+    # uint8_frames = []
+    # for i in range(num_navigators):
+        # uint8_frames.append(np.array(frames[i], dtype=np.uint8))
 
     print("Saving output to: {}".format(out_name))
-    imageio.mimsave(out_name, uint8_frames)
+    if out_type == 'mp4':
+        writer.close()
+    else:
+        imageio.mimsave(out_name, frames)
 
 
 def report_plot(combreg, maxd, maxr, navtr=None, bw=False):
