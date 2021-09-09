@@ -59,7 +59,7 @@ check_rm_folder() {
 input_file=
 nspokes=
 moco_folder=
-nav_thr=
+use_brain_mask=
 cg_its=8
 ds=3
 fov=240
@@ -90,9 +90,9 @@ while [ "$1" != "" ]; do
         shift
         moco_folder=$1
         ;;
-    --thr)
+    --mask)
         shift
-        nav_thr=$1
+        use_brain_mask=1
         ;;
     --its)
         shift
@@ -266,15 +266,17 @@ fi
 wait
 echolog "Step 2 - Done!"
 
-# Step 2.1 - Make brain mask for navigator registration
-bet_name=${input_basename}_refnav_bet
-if [[ ! -f ${bet_name}_mask.nii.gz ]]; then
-    echolog "Making brain mask for reference navigator"
-    h52nii.py ${nav_folder}/${input_basename}-nav${ref_nav_num}-cg.h5 --out ${input_basename}-nav${ref_nav_num}-cg.nii.gz
-    hd-bet -i ${input_basename}-nav${ref_nav_num}-cg.nii.gz -device cpu -mode fast -tta 0 -o $bet_name
-    fslmaths ${bet_name}_mask.nii.gz -dilM -dilM ${bet_name}_mask_dil
-    nii2h5 ${bet_name}_mask_dil.nii.gz --out ${bet_name}_mask_dil.h5
-    rm ${input_basename}-nav${ref_nav_num}-cg.nii.gz ${bet_name}_mask_dil.nii.gz
+# Optional step 2.1 - Make brain mask for navigator registration
+if [ $use_brain_mask ]; then
+    bet_name=${input_basename}_refnav_bet
+    if [[ ! -f ${bet_name}_mask.nii.gz ]]; then
+        echolog "Making brain mask for reference navigator"
+        h52nii.py ${nav_folder}/${input_basename}-nav${ref_nav_num}-cg.h5 --out ${input_basename}-nav${ref_nav_num}-cg.nii.gz
+        hd-bet -i ${input_basename}-nav${ref_nav_num}-cg.nii.gz -device cpu -mode fast -tta 0 -o $bet_name
+        fslmaths ${bet_name}_mask.nii.gz -dilM -dilM ${bet_name}_mask_dil
+        nii2h5 ${bet_name}_mask_dil.nii.gz --out ${bet_name}_mask_dil.h5
+        rm ${input_basename}-nav${ref_nav_num}-cg.nii.gz ${bet_name}_mask_dil.nii.gz
+    fi
 fi
 
 # Step 3 - Registering navigators
@@ -286,14 +288,6 @@ all_reg_obj=all_reg_param.p
 if [[ ! -d $reg_folder ]]; then
     mkdir $reg_folder
     ref_nav=${nav_folder}/${input_basename}-nav${ref_nav_num}-cg.h5
-    brain_mask=${bet_name}_mask_dil.h5
-
-    # Estimate image threshold from reference navigator if not set
-    if [[ -z $nav_thr ]]; then
-        echolog "Estimating navigator background threshold"
-        nav_thr=$(pymerlin thr --input=$ref_nav)
-        echolog "Threshold estimated to $nav_thr"
-    fi
 
     N=$batch_itk
     k=0
@@ -302,12 +296,16 @@ if [[ ! -d $reg_folder ]]; then
         ((k++ == 0)) && wait
 
         echolog "Registering navigator $i -> $ref_nav_num"
-        move_nav=${nav_folder}/${input_basename}-nav${i}-cg.h5
-        regname=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p
-        logname=${reg_folder}/log_nav${ref_name}_2_nav${i}.p
+        reg_args="--verbose=0 --fixed=${ref_nav}"
+        reg_args="${reg_args} --moving=${nav_folder}/${input_basename}-nav${i}-cg.h5"
+        reg_args="${reg_args} --reg=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p"
+        reg_args="${reg_args} --log=${reg_folder}/log_nav${ref_name}_2_nav${i}.p"
+        if [ $use_brain_mask ]; then
+            reg_args="${reg_args} --fixed_mask=${bet_name}_mask_dil.h5"
+        fi
 
         # Run registration and merge registration objects
-        pymerlin reg --fixed=$ref_nav --moving=$move_nav --verbose=0 --reg=$regname --log=$logname --fixed_mask=$brain_mask &
+        pymerlin reg $reg_args &
     done
     echolog "Step 3 - Done!"
 else
