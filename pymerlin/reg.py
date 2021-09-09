@@ -321,7 +321,7 @@ def get_versor_factors(registration):
 
     corrections = {'R': matrix,
                    'vx': regParameters[0],
-                   'y': regParameters[1],
+                   'vy': regParameters[1],
                    'vz': regParameters[2],
                    'dx': regParameters[3],
                    'dy': regParameters[4],
