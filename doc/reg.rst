@@ -12,7 +12,7 @@ The main workhorse of the registration is the `ants_pyramid` function. The regis
     :toctree: generated
     :nosignatures:
 
-    pymerlin.reg.ants_pyramid
+    pymerlin.reg.versor3D_registration
 
 Filter and Masking
 -----------------------------
@@ -22,8 +22,6 @@ Some tools for masking and thresholding
     :toctree: generated
     :nosignatures:
 
-    pymerlin.reg.sphere_mask
-    pymerlin.reg.brain_mask
     pymerlin.reg.otsu_filter
     pymerlin.reg.winsorize_image
     pymerlin.reg.threshold_image

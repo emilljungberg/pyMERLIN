@@ -383,8 +383,10 @@ def setup_optimizer(PixelType, opt_range, relax_factor, nit=250, learning_rate=0
     return optimizer
 
 
-def versor3D_registration(fixed_image_fname, moving_image_fname,
-                          moco_output_name=None, fixed_output_name=None,
+def versor3D_registration(fixed_image_fname,
+                          moving_image_fname,
+                          moco_output_name=None,
+                          fixed_output_name=None,
                           fixed_mask_fname=None,
                           reg_par_name=None,
                           iteration_log_fname=None,
@@ -407,26 +409,32 @@ def versor3D_registration(fixed_image_fname, moving_image_fname,
 
     ITK registration framework inspired by ANTs which performs a multi-scale 3D versor registratio between two 3D volumes. The input data is provided as .h5 image files. 
 
-    Prior to registration a number of filters can be applied
+    Default values works well. Mask for the fixed image is highly recommended for ZTE data with head rest pads visible.
 
-        - Winsorize (not recommended)
-        - Thresholding (recommended)
+    Note that the outputs of the registration is are versor and translation vectors. The versor is the vector part of a unit normalised quarterion. To get the equivalent euler angles use pymerlin.utils.versor_to_euler.
 
     Args:
         fixed_image_fname (str): Fixed file (.h5 file)
         moving_image_fname (str): Moving file (.h5 file)
         moco_output_name (str, optional): Output moco image as nifti. Defaults to None.
         fixed_output_name (str, optional): Output fixed image as nifti. Defaults to None.
-        fixed_mask_radius (int, optional): Radius of spherical mask for fixed image. Defaults to None.
+        fixed_mask_name (str, optional): Mask for fixed image. Defaults to None
         reg_par_name (str, optional): Name of output parameter file. Defaults to None.
         iteration_log_fname (str, optional): Name for output log file. Defaults to None.
-        opt_range (list, optional): Expected range of motion [deg,mm]. Defaults to [10, 30].
-        relax_factor (float, optional): Relaxation factor for optimizer. Defaults to 0.5.
-        winsorize (list, optional): Limits for winsorize filter. Defaults to [0.005, 0.995].
-        threshold (float, optional): Lower value for threshold filter . Defaults to None.
-        sigmas (list, optional): Smoothing sigmas for registration. Defaults to [2, 1, 0].
-        shrink (list, optional): Shring factors for registration. Defaults to [4, 2, 1].
+        opt_range (list, optional): Expected range of motion [deg,mm]. Defaults to [1 rad, 10 mm].
+        init_angle (float, optional): Initial angle for registration. Defaults to 0
+        init_axis (array, optional): Direction of intial rotation for registration. Defaults to [0,0,1]
+        relax_factor (float, optional): Relaxation factor for optimizer, factor to decrease step length by. Defaults to 0.5.
+        winsorize (list, optional): Limits for winsorize filter. Defaults to None.
+        threshold (float, optional): Lower value for threshold filter. Defaults to None.
+        sigmas (list, optional): Smoothing sigmas for multi-scale registration. Defaults to [0].
+        shrink (list, optional): Shring factors for multi-scale registration. Defaults to [1].
         metric (str, optional): Image metric for registrationn (MI/MS). Defaults to 'MS'.
+        learning_rate (float, optional): Initial step length. Defaults to 5.
+        convergence_window_size (int, optional): Length of window to calculate convergence value. Defaults to 10.
+        convergence_value (float, optional): Convergence value to terminate registration. Defaults to 1E-6.
+        min_step_length (float, optional): Minimum step length, after which the registration terminates. Defaults to 1E-6,
+        nit (int, optional): Maximum number of iterations per scale. Defaults to 250.
         verbose (int, optional): Level of debugging (0/1/2). Defaults to 2.
 
     Returns:

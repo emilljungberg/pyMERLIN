@@ -38,11 +38,22 @@ def calc_H(traj, D, spacing):
 
 def apply_moco(data_in, traj_in, D_reg, spacing):
     """
+    Applies rigid body motion correction to k-space data and trajetory.
+
     ITK versor applies the rotation and then the translation
     Correct approach is thus to first rotate trajectory then apply
     the corresponding phase correcttion on these coordinates
-    """
 
+    Args:
+        data_in (array): K-space data
+        traj_in (array): Trajectory
+        D_reg (dict): Registration dictionary
+        spacing (array): Image voxel size
+
+    Returns:
+        (array, array): corrected data and corrected trajectory 
+
+    """
     traj_corr = np.matmul(traj_in, D_reg['R'])
     H = calc_H(traj_corr, D_reg, spacing)
 
