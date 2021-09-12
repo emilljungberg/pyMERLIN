@@ -18,6 +18,7 @@ usage() {
     --its           | CG SENSE iterations (8)
     --ds            | Navigator downsampling (3)
     --fov           | MOCO field of view (240)
+    --mask          | Use automatic brain mask
     --ow            | Overwrite files without asking
     --step          | Step size for sliding window
     --ref           | Reference navigator
