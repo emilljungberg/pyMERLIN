@@ -332,16 +332,11 @@ def main_reg(args, unknown_args):
     while i < len(unknown_args):
         k = unknown_args[i].split('--')[1]
         val = unknown_args[i+1]
-
-        try:
-            val = float(val)
-        except ValueError:
-            continue
-
-        more_args[k] = val
         i += 2
-
-    print(more_args)
+        try:
+            more_args[k] = float(val)
+        except ValueError:
+            more_args[k] = val
 
     r, rout, reg_fname = versor3D_registration(fixed_image_fname=args.fixed,
                                                moving_image_fname=args.moving,
