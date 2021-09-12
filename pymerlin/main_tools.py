@@ -111,7 +111,7 @@ def nii2h5():
     if args.out:
         output_name = args.out
     else:
-        output_name = os.path.splitext(args.input)[0] + '.nii.gz'
+        output_name = os.path.splitext(args.input)[0] + '.h5'
 
     if os.path.isfile(output_name):
         print('{} output already exists'.format(output_name))
