@@ -567,7 +567,7 @@ def versor3D_registration(fixed_image_fname,
         mask = MaskType.New()
         data_mask_fix, spacing_mask_fix = read_image_h5(fixed_mask_fname)
         mask_img = create_image(
-            data_mask_fix, spacing_mask_fix, dtype=itk.UC, max_image_value=1)
+            data_mask_fix, spacing_mask_fix, dtype=itk.UC)
 
         mask.SetImage(mask_img)
         mask.Update()
