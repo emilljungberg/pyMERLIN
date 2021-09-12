@@ -24,4 +24,5 @@ Besides the python dependencies listed in ``pymerlin/requirements.txt``, MERLIN 
 
 Usage
 ----------------
-Further details about the usage is found in the `documentation <https://pymerlin.readthedocs.io/en/latest/>`_.
+- Further details about the usage is found in the `documentation <https://pymerlin.readthedocs.io/en/latest/>`_.
+- Examples and code to reproduce figures for paper submitted to MRM can be found in the `merlin_mrm <https://github.com/emilljungberg/merlin_mrm>`_ repository.
