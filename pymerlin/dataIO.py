@@ -7,7 +7,6 @@ Since pyMERLIN is tightly integrated with RIESLING, functions for reading k-spac
 import argparse
 import logging
 import os
-from shutil import copyfile
 
 import h5py
 import ismrmrd
@@ -252,47 +251,6 @@ def read_radial_h5(h5_file):
     data = f['noncartesian']
 
     return data, traj
-
-
-def modify_h5(source_h5, dest_h5, data, traj):
-    """Modify h5 file
-
-    Use base h5 file to produce new h5 file with
-    new data and trajectory/
-
-    Args:
-        source_h5 (str): Filename of source h5 file
-        dest_h5 (str): Filename of destination h5 file
-        data (array): K-space data
-        traj (array): Trajectory
-
-    Returns:
-        str: Filename of destination h5 file
-    """
-
-    try:
-        os.remove(dest_h5)
-        print("Removing old file")
-    except:
-        pass
-
-    copyfile(source_h5, dest_h5)
-
-    f = h5py.File(dest_h5, 'r+')
-    moco_traj = f['traj']
-    moco_data = f['data/0000']
-
-    traj_rs = np.reshape(np.reshape(
-        traj, [1, np.prod(np.shape(traj))]), np.shape(traj)[::-1])
-    data_rs = np.reshape(np.reshape(
-        data, [1, np.prod(np.shape(data))]), np.shape(data)[::-1])
-
-    moco_data[...] = data_rs
-    moco_traj[...] = traj_rs
-
-    f.close()
-
-    return dest_h5
 
 
 def make_3D(img):

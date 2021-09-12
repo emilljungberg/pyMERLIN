@@ -1,5 +1,5 @@
-MERLIN
-========================
+Motion Estimation and Retrospective correction Leveraging Interleaved Navigators - MERLIN
+======================================================================================================
 
 .. image:: https://img.shields.io/badge/License-MIT-green.svg
 	:target: https://opensource.org/licenses/MIT
@@ -24,4 +24,4 @@ Besides the python dependencies listed in ``pymerlin/requirements.txt``, MERLIN 
 
 Usage
 ----------------
-Further details about the usage is found in the documentation (insert link here).
+Further details about the usage is found in the `documentation <https://pymerlin.readthedocs.io/en/latest/>`_.
