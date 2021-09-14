@@ -246,7 +246,8 @@ def reg_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
         r_ax = fig.add_subplot(spec[0, 1], rasterized=use_raster)
 
         for (i, ax) in enumerate(['x', 'y', 'z']):
-            d_ax.plot(t, all_reg['d%s' % ax], linewidth=3, color='C%d' % i)
+            d_ax.plot(t, all_reg['d%s' % ax], linewidth=3,
+                      color='C%d' % i, label=ax)
             d_ax.plot([t[img_idx], t[img_idx]], [-max_d, max_d], '--k')
             plt.gca().set_rasterization_zorder(raster_order)
 
@@ -260,6 +261,7 @@ def reg_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
         d_ax.set_xlabel(plot_xlabel)
         d_ax.axis(d_axis)
         d_ax.grid()
+        d_ax.legend(loc='upper left')
 
         r_ax.set_title('Rotation')
         r_ax.set_ylabel(r'$\alpha_%s$ [deg]' % ax)
