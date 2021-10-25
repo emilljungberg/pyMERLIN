@@ -68,7 +68,6 @@ overwrite_files=0
 verbose=0
 riesling_verbose=""
 spoke_step=
-tukey=
 ref_nav_num=0
 metric=MS
 batch_itk=1
@@ -122,10 +121,6 @@ while [ "$1" != "" ]; do
     --step)
         shift
         spoke_step=$1
-        ;;
-    --tukey)
-        shift
-        tukey_a=$1
         ;;
     --batchitk)
         shift
@@ -222,16 +217,6 @@ fi
 
 num_interleaves=$(ls ${int_folder} | wc -l)
 echolog "Generated ${num_interleaves} interleaves"
-
-if [ $tukey_a ]; then
-    echolog "Applying tukey filter"
-    for ((i = 0; i < $num_interleaves; i++)); do
-        tukey_name=${int_folder}/${input_basename}-int${i}
-        pymerlin tukey --input ${tukey_name}.h5 --output ${tukey_name}_tukey.h5 --alpha $tukey_a
-        rm ${tukey_name}.h5
-        mv ${tukey_name}_tukey.h5 ${tukey_name}.h5
-    done
-fi
 
 # Step 2 - Reconstruct navigators
 echolog "Step 2 - Reconstructing navigators"
