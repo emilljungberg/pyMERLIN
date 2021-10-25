@@ -214,7 +214,7 @@ if [[ ! -d $int_folder ]]; then
     mkdir $int_folder
     riesling split -o ${int_folder}/${input_basename} --step=$spoke_step --nspokes=$nspokes --ds=$ds $riesling_verbose $fullpath_input
     riesling split ${int_folder}/${input_basename}-lores.h5 --ds=$ds -v
-    mv ${int_folder}/${input_basename}-lores-hires.h5 ${input_basename}-waspi.h5
+    mv ${input_basename}-lores-hires.h5 ${input_basename}-waspi.h5
     rm ${int_folder}/${input_basename}-lores.h5
 else
     echolog "$int_folder folder already exists, skipping this step"
@@ -242,7 +242,9 @@ if [[ ! -d $nav_folder ]]; then
     mkdir $nav_folder
 
     # Make SENSE maps
+    echolog "Making sense maps"
     riesling sense ${input_basename}-waspi.h5 --sdc=pipe --fov=256 --lambda=1000
+    echolog "Finished SENSE maps"
 
     N=$batch_riesling
     k=0
