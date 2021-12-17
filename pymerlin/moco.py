@@ -26,10 +26,10 @@ def calc_H(traj, D, spacing):
     dy = D['dy']/spacing[1]
     dz = D['dz']/spacing[2]
 
-    # We assume that the trajectory is normalised to 1
-    xF = traj[:, :, 0]/2
-    yF = traj[:, :, 1]/2
-    zF = traj[:, :, 2]/2
+    # We assume that the trajectory is normalised to -0.5 to 0.5
+    xF = traj[:, :, 0]
+    yF = traj[:, :, 1]
+    zF = traj[:, :, 2]
 
     H = np.exp(2j*np.pi*(xF*dx + yF*dy + zF*dz))
 
@@ -67,7 +67,7 @@ def apply_moco(data_in, traj_in, D_reg, spacing):
     return data_corr, traj_corr
 
 
-def moco_single(source_h5, dest_h5, reg):
+def moco_single(source_h5, dest_h5, reg, nlores):
     """Corrects a radial dataset from a pickle file.
 
     Args:
@@ -82,7 +82,7 @@ def moco_single(source_h5, dest_h5, reg):
 
     info = f_source['info'][:]
     spacing = info['voxel_size'][0]
-    spokes_lo = info['spokes_lo'][0]
+    spokes_lo = nlores
     lo_scale = info['lo_scale'][0]
 
     traj = f_source['trajectory'][:]
@@ -94,13 +94,18 @@ def moco_single(source_h5, dest_h5, reg):
     logging.info("Correcting data and trajectories")
     traj_corr = np.matmul(traj, reg['R'])
 
-    H_high = calc_H(traj_corr[spokes_lo:, :, :], reg, spacing)
-    H_low = calc_H(traj_corr[0:spokes_lo, :, :], reg, spacing/lo_scale)
+    dc, tc = apply_moco(data_in=data[0, spokes_lo:, :, :], traj_in=traj[spokes_lo:, :, :],
+                        D_reg=reg, spacing=spacing)
+    data_corr[:, spokes_lo:, ...] = dc
+    traj_corr[spokes_lo:, ...] = tc
 
-    for ircv in range(np.shape(data)[-1]):
-        data_corr[0, spokes_lo:, :, ircv] = data[0, spokes_lo:, :, ircv]*H_high
-        data_corr[0, 0:spokes_lo, :,  ircv] = data[0,
-                                                   0:spokes_lo, :, ircv]*H_low
+    if spokes_lo > 0:
+        lo_scale = np.max(traj_corr[spokes_lo:, ...][:]) / \
+            np.max(traj_corr[0:spokes_lo, ...][:])
+        dc, tc = apply_moco(data_in=data[0, 0:spokes_lo, :, :], traj_in=traj[0:spokes_lo, :, :],
+                            D_reg=reg, spacing=spacing*lo_scale)
+        data_corr[:, 0:spokes_lo, ...] = dc
+        traj_corr[0:spokes_lo, ...] = tc
 
     # Write data to destination file
     valid_dest_h5 = check_filename(dest_h5)
@@ -110,7 +115,7 @@ def moco_single(source_h5, dest_h5, reg):
     f_source.close()
 
 
-def moco_combined(source_h5, dest_h5, reg_list):
+def moco_combined(source_h5, dest_h5, reg_list, nlores):
     """Corrects a combined radial dataset from list of pickle files
 
     Args:
@@ -125,7 +130,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
 
     info = f_source['info'][:]
     spacing = info['voxel_size'][0]
-    spokes_lo = info['spokes_lo'][0]
+    spokes_lo = nlores
 
     n_interleaves = len(reg_list)
 
@@ -149,7 +154,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
         idx0 = idx1
         idx1 = idx0 + D_reg['spi']
 
-        tc, dc = apply_moco(data_in=data[0, idx0:idx1, :, :], traj_in=traj[idx0:idx1, :, :],
+        dc, tc = apply_moco(data_in=data[0, idx0:idx1, :, :], traj_in=traj[idx0:idx1, :, :],
                             D_reg=D_reg, spacing=spacing)
 
         data_corr[0, idx0:idx1, ...] = dc
@@ -165,7 +170,7 @@ def moco_combined(source_h5, dest_h5, reg_list):
     f_source.close()
 
 
-def moco_sw(source_h5, dest_h5, reg_list, nseg):
+def moco_sw(source_h5, dest_h5, reg_list, nseg, nlores):
     """Corrects radial dataset from a sliding window reconstruction.
 
     Args:
@@ -181,7 +186,7 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
 
     info = f_source['info'][:]
     spacing = info['voxel_size'][0]
-    spokes_lo = info['spokes_lo'][0]
+    spokes_lo = nlores
 
     n_nav = len(reg_list)
 
@@ -200,7 +205,7 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
         traj_corr[idx0:idx1, :, :] = traj[idx0:idx1, :, :]
 
     logging.info("Correcting data and trajectories")
-
+    logging.info(f"sps: {int(reg_list[0]['spi']/nseg)}")
     # Loop over all segments
     for iseg in range(n_nav+nseg-1):
 
@@ -219,7 +224,7 @@ def moco_sw(source_h5, dest_h5, reg_list, nseg):
         idx0 = idx1                   # Start where last interleave ended
         sps = int(D_reg['spi']/nseg)  # Spokes per segment
         idx1 = idx0 + sps
-        print("i0:i1: {}:{}".format(idx0, idx1))
+        print("inav: {}, i0:i1: {}:{}".format(inav, idx0, idx1))
 
         dc, tc = apply_moco(data_in=data[0, idx0:idx1, :, :], traj_in=traj[idx0:idx1, :, :],
                             D_reg=D_reg, spacing=spacing)

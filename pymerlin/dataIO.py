@@ -212,7 +212,7 @@ def create_image(img_array, spacing, corners=None, max_image_value=None, dtype=N
     return img_out
 
 
-def read_image_h5(h5_file, vol=0):
+def read_image_h5(h5_file, vol=0, echo=0):
     """Read image h5 file
 
     Args:
@@ -224,7 +224,7 @@ def read_image_h5(h5_file, vol=0):
 
     f = h5py.File(h5_file, 'r')
 
-    data = f['image'][vol, :, :, :]
+    data = f['image'][echo, :, :, :, vol]
     spacing = f['info'][0][1]
 
     f.close()
@@ -279,7 +279,8 @@ def write_kspace_h5(f_dest, noncartesian, trajectory, info, f_source=None):
         try:
             f_source.copy('meta', f_dest)
         except:
-            print("No meta data")
+            logging.info("No meta data")
+        f_source.copy('echoes', f_dest)
 
     logging.info("Writing trajectory")
     traj_chunk_dims = list(trajectory.shape)
@@ -298,3 +299,47 @@ def write_kspace_h5(f_dest, noncartesian, trajectory, info, f_source=None):
 
     logging.info("Closing {}".format(f_dest))
     f_dest.close()
+
+
+def get_merlin_fields():
+    valid_input_args = ['nspokes',
+                        'nlores',
+                        'spoke_step',
+                        'make_brain_mask',
+                        'brain_mask_file',
+                        'sense_maps',
+                        'cg_its',
+                        'ds',
+                        'fov',
+                        'overwrite_files',
+                        'riesling_verbosity',
+                        'ref_nav_num',
+                        'metric',
+                        'batch_itk',
+                        'batch_riesling',
+                        'threads_itk',
+                        'threads_riesling']
+
+    return valid_input_args
+
+
+def check_merlin_inputs(fname):
+    valid_input_args = get_merlin_fields()
+    with open('merlin_input_args.txt') as f:
+        eof = False
+        input_arguments = {}
+        while not eof:
+            line = f.readline().split('\n')[0]
+            if len(line) > 0:
+                arg = line.split('=')[0]
+                val = line.split('=')[1]
+                if arg not in input_args:
+                    raise ValueError('%s is not a valid input argument' % arg)
+                input_arguments[arg] = val
+            else:
+                eof = True
+
+    # Check for invalid combinations
+    if (input_arguments['make_brain_mask'] == 1) and (len(input_arguments['brain_mask_file']) > 0):
+        raise ValueError(
+            'Cannot use make_brain_mask and brain_mask_file together. Choose one')
