@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from .plot import plot_3plane
-from .dataIO import read_image_h5
+from .dataIO import read_image_h5, parse_fname
 import matplotlib.pyplot as plt
 import argparse
 import os
@@ -111,14 +111,14 @@ def nii2h5():
     if args.out:
         output_name = args.out
     else:
-        output_name = os.path.splitext(args.input)[0] + '.h5'
+        output_name = parse_fname(args.input) + '.h5'
 
     if os.path.isfile(output_name):
         print('{} output already exists'.format(output_name))
         return
     else:
         print('Writing to {}'.format(output_name))
-        h5 = h5py.File(args.out, 'w')
+        h5 = h5py.File(output_name, 'w')
         h5.create_dataset('image', data=img_data[np.newaxis, ...])
         h5.create_dataset('info', data=info)
         h5.close()
