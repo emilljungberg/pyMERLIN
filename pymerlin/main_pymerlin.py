@@ -63,7 +63,7 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from .dataIO import (arg_check_h5, arg_check_nii, make_3D, parse_fname,
+from .dataIO import (arg_check_h5, arg_check_nii, get_merlin_fields, make_3D, parse_fname,
                      read_image_h5)
 from .iq import aes, nrmse, ssim, gradient_entropy
 from .moco import moco_combined, moco_single, moco_sw
@@ -95,6 +95,7 @@ class PyMerlin_parser(object):
         aes         Calculate Average Edge Strength
         nrmse       Calculate Normalised Root Mean Squared Error
         tukey       Applies Tukey filter to radial k-space data
+        param       Makes a valid parameter file
     '''
                                          )
 
@@ -169,6 +170,10 @@ class PyMerlin_parser(object):
         parser.add_argument(
             "--nseg", help="Segments per interleave for sliding window", required=False, type=int, default=None
         )
+        parser.add_argument(
+            '--waspi', help='Apply moco to WASPI data', action='store_true')
+        parser.add_argument(
+            '--nlores', help='Number of WASPI spokes', type=int, default=0)
         parser.add_argument(
             "--verbose", help="Log level (0,1,2)", default=2, type=int)
 
@@ -315,6 +320,49 @@ class PyMerlin_parser(object):
         args = parser.parse_args(sys.argv[2:])
         main_tukey(args)
 
+    def param(self):
+        parser = argparse.ArgumentParser(
+            description='Generate a valid parameter file for run_merlin_sw',
+            usage='pymerlin param par_file [<args>]')
+        parser.add_argument('parfile', type=str, help='Output parameter file')
+        parser.add_argument('--nspokes', type=int,
+                            help='Number of spokes', required=True)
+        parser.add_argument('--nlores', type=int,
+                            help='Number of lores spokes', required=True)
+        parser.add_argument('--spoke_step', type=int,
+                            help='Spoke step for sliding window', required=True)
+        parser.add_argument('--make_brain_mask',
+                            action='store_true', default=False)
+        parser.add_argument('--brain_mask_file', type=str,
+                            default=None, help='Brain mask')
+        parser.add_argument('--sense_maps', type=str,
+                            help='Input sense maps', default=None)
+        parser.add_argument('--cg_its', type=int,
+                            help='Number of cgSENSE iterations', default=4)
+        parser.add_argument(
+            '--ds', type=int, help='Downsampling factor for navigator recon', default=3)
+        parser.add_argument('--fov', type=int,
+                            help='FOV for navigator recon', default=240)
+        parser.add_argument('--overwrite_files',
+                            action='store_true', help='Overwrite files')
+        parser.add_argument('--riesling_verbosity',
+                            type=int, default=0, help='Riesling verbose output')
+        parser.add_argument('--ref_nav_num', type=int,
+                            help='Navigator reference', default=0)
+        parser.add_argument('--metric', type=str,
+                            help='Registration metric', default='MS')
+        parser.add_argument('--batch_itk', type=int,
+                            help='Batch size for ITK', default=4)
+        parser.add_argument('--batch_riesling', type=int,
+                            help='Batch size for riesling', default=4)
+        parser.add_argument('--threads_itk', type=int,
+                            help='Number of threads ITK', default=2)
+        parser.add_argument('--threads_riesling', type=int,
+                            help='Number of riesling threads', default=2)
+
+        args = parser.parse_args(sys.argv[2:])
+        main_param(args)
+
     def get_args(self):
         return self.outargs
 
@@ -383,11 +431,11 @@ def main_moco(args):
     reg_list = pickle.load(open(args.reg, 'rb'))
 
     if isinstance(reg_list, dict):
-        moco_single(args.input, args.output, reg_list)
+        moco_single(args.input, args.output, reg_list, args.nlores)
     elif args.nseg:
-        moco_sw(args.input, args.output, reg_list, args.nseg)
+        moco_sw(args.input, args.output, reg_list, args.nseg, args.nlores)
     else:
-        moco_combined(args.input, args.output, reg_list)
+        moco_combined(args.input, args.output, reg_list, args.nlores)
 
 
 def main_merge(args):
@@ -612,6 +660,21 @@ def main_tukey(args):
 
     f_dest.close()
     print("Saved data to {}".format(args.output))
+
+
+def main_param(args):
+    valid_args = get_merlin_fields()
+    with open(args.parfile, 'w') as f:
+        for key in valid_args:
+            val = eval(f'args.{key}')
+            print(f"{key}={val}")
+            if type(val) == bool:
+                val = int(val)
+            if val == None:
+                val = ''
+            f.write(f'{key}={val}\n')
+
+    print(f"Wrote parameters to: {args.parfile}")
 
 
 def main():
