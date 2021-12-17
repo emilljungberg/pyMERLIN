@@ -9,26 +9,31 @@ usage() {
     usage: bash run_merlin_sw -i input_file -n spokes_per_int
 
     Required arguments
-    -i      | --input       
-    -n      | --nspokes
+    -i      Input .h5 file       
+    -o      Output folder
+    -p      Paramter file
 
     Optional arguments
-    --out           | Output folder (./<input_mocodir>)
-    --thr           | Navigator image threshold (300)
-    --its           | CG SENSE iterations (8)
-    --ds            | Navigator downsampling (3)
-    --fov           | MOCO field of view (240)
-    --mask          | Use automatic brain mask
-    --ow            | Overwrite files without asking
-    --step          | Step size for sliding window
-    --ref           | Reference navigator
-    --metric        | Metric (MS/MI), def MS
-    --batchitk      | Batch size for parallel ITK
-    --batchries     | Batch size for parallel riesling
-    --threaditk     | Number of threads for ITK
-    --threadries    | Number of threads for riesling
-    -v              | --verbose (0)
-    -h              | --help        
+    -v      Verbose
+    -h      Help 
+
+    Parameter file content
+        nspokes                 | Numer of spokes per interleave (int)
+        spoke_step              | Spoke step in sliding window (int)
+        make_brain_mask         | Make a brain mask from reg navigator (0/1)
+        brain_mask_file         | Use a specified brain mask (str)
+        sense_maps              | Use specified sense maps (str)
+        cg_its                  | Number of cgSENSE iterations (int)
+        ds                      | Downsampling factor for navigators (int)
+        fov                     | FOV for navigators in mm (int)
+        overwrite_files         | Overwrite files when rerunning (0/1)
+        riesling_verbose        | Verbosity for riesling output (0/1)
+        ref_nav_num             | Navigator reference (int)
+        metric                  | Registration metric (MS/MI)
+        batch_itk               | Batch size for ITK registration (int)
+        batch_riesling          | Batch size for riesling recon (int)
+        threads_itk             | Num threads for ITK
+        threads_riesling        | Num threads for riesling
 EOF
 }
 
@@ -58,120 +63,53 @@ check_rm_folder() {
 
 # Default values
 input_file=
-nspokes=
 moco_folder=
-use_brain_mask=
-cg_its=8
-ds=3
-fov=240
-overwrite_files=0
+param_file=
 verbose=0
-riesling_verbose=""
-spoke_step=
-ref_nav_num=0
-metric=MS
-batch_itk=1
-batch_riesling=1
-threads_itk=
-threads_riesling=
 
 # Parse commandline argument
-while [ "$1" != "" ]; do
-    case $1 in
-    -i | --input)
-        shift
-        input_file=$1
+while getopts "i:o:p:vh" o; do
+    case "${o}" in
+    i)
+        input_file=${OPTARG}
         ;;
-    -n | --nspokes)
-        shift
-        nspokes=$1
+    o)
+        moco_folder=${OPTARG}
         ;;
-    --out)
-        shift
-        moco_folder=$1
+    p)
+        param_file=${OPTARG}
         ;;
-    --mask)
-        shift
-        use_brain_mask=1
-        ;;
-    --its)
-        shift
-        cg_its=$1
-        ;;
-    --ds)
-        shift
-        ds=$1
-        ;;
-    --fov)
-        shift
-        fov=$1
-        ;;
-    --ow)
-        shift
-        overwrite_files=1
-        ;;
-    --ref)
-        shift
-        ref_nav_num=$1
-        ;;
-    --metric)
-        shift
-        metric=$1
-        ;;
-    --step)
-        shift
-        spoke_step=$1
-        ;;
-    --batchitk)
-        shift
-        batch_itk=$1
-        ;;
-    --batchries)
-        shift
-        batch_riesling=$1
-        ;;
-    --threaditk)
-        shift
-        threads_itk=$1
-        ;;
-    --threadries)
-        shift
-        threads_riesling=$1
-        ;;
-    -v | --verbose)
-        shift
-        verbose=1
-        ;;
-    -h | --help)
+    h)
         usage
-        exit
+        ;;
+    v)
+        verbose=1
         ;;
     *)
         usage
-        exit 1
         ;;
     esac
-    shift
 done
+
+shift $((OPTIND - 1))
+echolog "Reading parameters from: $param_file"
+cat $param_file
+source $param_file
+echo $threads_riesling
 
 # Checking commandline arguments
 if [ -z $input_file ]; then
-    echo "Input file is required. Use flag -i / --input"
+    echo "Input file is required. Use flag -i"
     exit
+fi
+
+if [ -z $param_file ]; then
+    echo "Parameter file is required. Use flag -p"
 fi
 
 if [[ ! -e $input_file ]]; then
     echo "Input file ${input_file} does not exist"
     exit
-fi
-
-if [ -z $nspokes ]; then
-    echo "Number of spokes per interleave required. Use flag -n / --nspokes"
-    exit
-fi
-
-if [[ $verbose -eq 1 ]]; then
-    riesling_verbose="-v"
 fi
 
 if [[ $threads_itk ]]; then
@@ -207,10 +145,10 @@ int_folder="interleaves"
 check_rm_folder $int_folder $overwrite_files
 if [[ ! -d $int_folder ]]; then
     mkdir $int_folder
-    riesling split -o ${int_folder}/${input_basename} --step=$spoke_step --nspokes=$nspokes --ds=$ds $riesling_verbose $fullpath_input
-    riesling split ${int_folder}/${input_basename}-lores.h5 --ds=$ds -v
-    mv ${input_basename}-lores-hires.h5 ${input_basename}-waspi.h5
-    rm ${int_folder}/${input_basename}-lores.h5
+    riesling split -o ${int_folder}/${input_basename} --step=$spoke_step --lores=$nlores --nspokes=$nspokes -v --ds=$ds $fullpath_input
+    # riesling split ${int_folder}/${input_basename}-vol-00-lores.h5 --ds=$ds -v
+    mv ${int_folder}/${input_basename}-vol-00-lores.h5 ${input_basename}-waspi.h5
+    # rm ${int_folder}/${input_basename}-vol-00-lores.h5
 else
     echolog "$int_folder folder already exists, skipping this step"
 fi
@@ -222,25 +160,28 @@ echolog "Generated ${num_interleaves} interleaves"
 echolog "Step 2 - Reconstructing navigators"
 nav_folder="navigators"
 check_rm_folder $nav_folder $overwrite_files
-
 if [[ ! -d $nav_folder ]]; then
-    mkdir $nav_folder
 
     # Make SENSE maps
-    echolog "Making sense maps"
-    riesling sense ${input_basename}-waspi.h5 --sdc=pipe --fov=256 --lambda=1000
-    echolog "Finished SENSE maps"
+    if [ -z $sense_maps ]; then
+        echolog "Making sense maps"
+        riesling sense ${input_basename}-waspi.h5 --kernel=KB3 --sdc=pipenn --fov=256 --lambda=1000
+        echolog "Finished SENSE maps"
+        sense_maps=${input_basename}-waspi-sense.h5
+    fi
+
+    mkdir $nav_folder
 
     N=$batch_riesling
     k=0
     for ((i = 0; i < $num_interleaves; i++)); do
         ((k = k % N))
         ((k++ == 0)) && wait
-        int_file=${int_folder}/${input_basename}-int${i}.h5
+        int_file=$(printf "%s/%s-vol-00-int-%02d.h5" ${int_folder} ${input_basename} ${i})
         out_file=${nav_folder}/${input_basename}-nav${i}
 
         echolog "Reconstructing $int_file"
-        options="--sense=${input_basename}-waspi-sense.h5 --kb --fast-grid --sdc=pipe --mag --fov=$fov
+        options="--sense=$sense_maps --kernel=KB3 --sdc=pipenn --toe --mag --fov=$fov
         --max_its=$cg_its --out=$out_file"
         if [ $threads_riesling ]; then
             options="${options} --nthreads=${threads_riesling}"
@@ -255,7 +196,9 @@ wait
 echolog "Step 2 - Done!"
 
 # Optional step 2.1 - Make brain mask for navigator registration
-if [ $use_brain_mask ]; then
+if [ $brain_mask_file ]; then
+    use_brain_mask=1
+elif [[ $make_brain_mask -eq 1 ]]; then
     bet_name=${input_basename}_refnav_bet
     if [[ ! -f ${bet_name}_mask.nii.gz ]]; then
         echolog "Making brain mask for reference navigator"
@@ -265,6 +208,8 @@ if [ $use_brain_mask ]; then
         nii2h5 ${bet_name}_mask_dil.nii.gz --out ${bet_name}_mask_dil.h5
         rm ${input_basename}-nav${ref_nav_num}-cg.nii.gz ${bet_name}_mask_dil.nii.gz
     fi
+    use_brain_mask=1
+    brain_mask_file=${bet_name}_mask_dil.h5
 fi
 
 # Step 3 - Registering navigators
@@ -289,7 +234,7 @@ if [[ ! -d $reg_folder ]]; then
         reg_args="${reg_args} --reg=${reg_folder}/reg_nav${ref_name}_2_nav${i}.p"
         reg_args="${reg_args} --log=${reg_folder}/log_nav${ref_name}_2_nav${i}.p"
         if [ $use_brain_mask ]; then
-            reg_args="${reg_args} --fixed_mask=${bet_name}_mask_dil.h5"
+            reg_args="${reg_args} --fixed_mask=$brain_mask_file"
         fi
 
         # Run registration and merge registration objects
@@ -316,6 +261,6 @@ fi
 
 # Step 4 - Perform motion correction
 echolog "[Step 4] Performing motion correction"
-pymerlin moco --input=$fullpath_input --output=${input_basename}_moco.h5 --reg=$all_reg_obj --nseg $((nspokes / spoke_step)) --verbose 2
+pymerlin moco --input=$fullpath_input --output=${input_basename}_moco.h5 --reg=$all_reg_obj --nseg $((nspokes / spoke_step)) --nlores $nlores --verbose 2
 
 # Finished
