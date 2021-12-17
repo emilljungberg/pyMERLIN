@@ -198,7 +198,8 @@ def reg_animation(reg_out, images, out_name='animation.gif', slice_pos=None, tna
     num_navigators = images.shape[3]
 
     if len(combreg) != num_navigators:
-        raise TypeError
+        raise ValueError(
+            f'Length of combreg ({len(combreg)}) is not the same as number of navigator images ({images.shape[3]})')
 
     all_reg = parse_combreg(combreg)
 
