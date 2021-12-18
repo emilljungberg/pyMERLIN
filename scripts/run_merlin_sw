@@ -150,9 +150,7 @@ check_rm_folder $int_folder $overwrite_files
 if [[ ! -d $int_folder ]]; then
     mkdir $int_folder
     riesling split -o ${int_folder}/${input_basename} --step=$spoke_step --lores=$nlores --nspokes=$nspokes -v --ds=$ds $fullpath_input
-    # riesling split ${int_folder}/${input_basename}-vol-00-lores.h5 --ds=$ds -v
     mv ${int_folder}/${input_basename}-vol-00-lores.h5 ${input_basename}-waspi.h5
-    # rm ${int_folder}/${input_basename}-vol-00-lores.h5
 else
     echolog "$int_folder folder already exists, skipping this step"
 fi

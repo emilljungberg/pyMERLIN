@@ -10,7 +10,9 @@ MERLIN is a method for Motion Estimation Retrospective correction Leveraging Int
 
 Installation
 -----------------
-Install the python tools for ``pymerlin`` with ``pip`` by cloning this repository and running the following command in the main folder::
+Install the python tools for ``pymerlin`` with ``pip`` by cloning this repository and running the following command in the main folder
+
+.. code::
 
 	pip install -e .
 
@@ -26,3 +28,7 @@ Usage
 ----------------
 - Further details about the usage is found in the `documentation <https://pymerlin.readthedocs.io/en/latest/>`_.
 - Examples and code to reproduce figures for paper submitted to MRM can be found in the `merlin_mrm <https://github.com/emilljungberg/merlin_mrm>`_ repository.
+
+Citation
+----------------
+Suitable paper for citation of this repository is in revision. Stay tuned!
