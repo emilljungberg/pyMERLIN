@@ -193,15 +193,18 @@ def h5viewer():
         H5          File input
 
         optional arguments:
-        -h, --help  show this help message and exit
+        -v,         Volume to show (default=0)
+        -e,         Echo to show (default=0)
+        -h, --help  Show this help message and exit
     """
     parser = argparse.ArgumentParser(
         description="h5viewer", usage='h5viewer file.h5')
     parser.add_argument("h5file", metavar="H5", help="File input", type=str)
+    parser.add_argument("-v", help="Volume", type=int, default=0)
+    parser.add_argument("-e", help="Echo", type=int, default=0)
 
     args = parser.parse_args()
-    f = args.h5file
-    I, spacing = read_image_h5(f)
+    I, _ = read_image_h5(args.h5file, args.vol, args.echo)
 
     print("Displaying %s" % f)
     plot_3plane(abs(I), title=f, cmap='gray', vmin=None, vmax=None)

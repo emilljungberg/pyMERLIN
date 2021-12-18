@@ -15,7 +15,6 @@ The executable works like the git command with subcommands.
         moco        Run moco
         report      View report of data
         metric      Image metric analysis
-        view        View h5 file
         animation   Navigator and registration animation
         ssim        Calculate Structural Similarity Index Measure
         aes         Calculate Average Edge Strength
@@ -90,7 +89,6 @@ class PyMerlin_parser(object):
         moco        Run moco
         report      View report of data
         metric      Image metric analysis
-        view        View h5 file
         animation   Navigator and registration animation
         ssim        Calculate Structural Similarity Index Measure
         aes         Calculate Average Edge Strength

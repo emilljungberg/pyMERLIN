@@ -6,7 +6,7 @@
 
 usage() {
     cat <<EOF
-    usage: bash run_merlin_sw -i input_file -n spokes_per_int
+    usage: bash run_merlin_sw -i input_file -p par.txt -o moco_folder
 
     Required arguments
     -i      Input .h5 file       
@@ -17,8 +17,12 @@ usage() {
     -v      Verbose
     -h      Help 
 
-    Parameter file content
+    Create the parameter file using
+        > pymerlin param
+
+    The parameter is a text file with the following content
         nspokes                 | Numer of spokes per interleave (int)
+        nlores                  | Number of lores spokes (int)
         spoke_step              | Spoke step in sliding window (int)
         make_brain_mask         | Make a brain mask from reg navigator (0/1)
         brain_mask_file         | Use a specified brain mask (str)
