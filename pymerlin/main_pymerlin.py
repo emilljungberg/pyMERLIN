@@ -21,6 +21,7 @@ The executable works like the git command with subcommands.
         aes         Calculate Average Edge Strength
         nrmse       Calculate Normalised Root Mean Squared Error
         tukey       Applies Tukey filter to radial k-space data
+        param       Makes a valid parameter file
 
 To get more help for a specific command add ``-h``.
 
@@ -217,15 +218,6 @@ class PyMerlin_parser(object):
 
         args = parser.parse_args(sys.argv[2:])
         main_metric(args)
-
-    def view(self):
-        parser = argparse.ArgumentParser(
-            description="View h5 file", usage='pymerlin view H5FILE')
-        parser.add_argument("input", help="H5 input file",
-                            type=str, required=True)
-
-        args = parser.parse_args(sys.argv[2:])
-        main_view(args)
 
     def animation(self):
         parser = argparse.ArgumentParser(
@@ -480,31 +472,6 @@ def main_merge(args):
 
         logging.info("Writing combined reg object back to {}".format(args.reg))
         pickle.dump(dlist, open(args.reg, 'wb'))
-
-
-def main_view(args):
-    plt.style.use('dark_background')
-
-    f = args.input
-    h5 = h5py.File(f, 'r')
-    fname = os.path.basename(f)
-    img = h5['data/0000']
-
-    fig = plt.figure(figsize=(12, 6), facecolor='black')
-    nx, ny, nz = np.shape(img)
-    fig.add_subplot(1, 3, 1)
-    plt.imshow(abs(img[int(nx/2), :, :]), cmap='gray')
-    plt.axis('off')
-    fig.add_subplot(1, 3, 2)
-    plt.imshow(abs(img[:, int(ny/2), :]), cmap='gray')
-    plt.axis('off')
-    plt.title(fname, size=20)
-    fig.add_subplot(1, 3, 3)
-    plt.imshow(abs(img[:, :, int(nz/2)]), cmap='gray')
-    plt.axis('off')
-
-    plt.tight_layout()
-    plt.show()
 
 
 def main_metric(args):
