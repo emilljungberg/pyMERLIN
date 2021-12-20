@@ -1,6 +1,8 @@
 Motion Estimation and Retrospective correction Leveraging Interleaved Navigators - MERLIN
 ======================================================================================================
 
+`Source Code <https://github.com/emilljungberg/pyMERLIN>`_ | `Documentation <https://pymerlin.readthedocs.io/en/latest/index.html>`_ | `Examples <https://github.com/emilljungberg/merlin_mrm>`_ 
+
 .. image:: https://img.shields.io/badge/License-MIT-green.svg
 	:target: https://opensource.org/licenses/MIT
 
