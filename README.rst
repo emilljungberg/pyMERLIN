@@ -1,10 +1,9 @@
 Motion Estimation and Retrospective correction Leveraging Interleaved Navigators - MERLIN
 ======================================================================================================
-
-`Source Code <https://github.com/emilljungberg/pyMERLIN>`_ | `Documentation <https://pymerlin.readthedocs.io/en/latest/index.html>`_ | `Examples <https://github.com/emilljungberg/merlin_mrm>`_ 
-
 .. image:: https://img.shields.io/badge/License-MIT-green.svg
 	:target: https://opensource.org/licenses/MIT
+
+`Source Code <https://github.com/emilljungberg/pyMERLIN>`_ | `Documentation <https://pymerlin.readthedocs.io/en/latest/index.html>`_ | `Examples <https://github.com/emilljungberg/merlin_mrm>`_ 
 
 
 MERLIN is a method for Motion Estimation Retrospective correction Leveraging Interleaved Navigators. This repository contains python code (in ``pymerlin``) for performing motion correction on suitable MRI data. The example pipelines in ``pymerlin`` are specifically designed to be used with 3D radial, ZTE, acquisitions.
